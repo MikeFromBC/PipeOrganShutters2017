@@ -16,8 +16,9 @@ const int Motor2_SetPositionAnalogInputPin_TEST=A3;
 const int Motor1=1;
 const int Motor2=2;
 
+const int icShutterSteps=16;
 const int icSeekSpeed=128;
-const int icThreshold=5;
+const int dcThresholdPct=100 / icShutterSteps;
 
 struct TMotor {
   byte iMotorNum;
@@ -28,7 +29,8 @@ struct TMotor {
   byte iMotor_DirPinA;
   byte iMotor_DirPinB;
   byte iMotor_EnablePin;
-
+  boolean bMotor_HighSpeedWasUsed;
+  
   int iMemory_FullClosedPosition;
   int iMemory_FullOpenPosition;
 };
@@ -47,6 +49,8 @@ void logPosition() {
     Serial.print("  set pct value:  ");
     Serial.print(readSetPositionPct(&rMotor1));
     Serial.print("  actual value:  ");
+    Serial.print(analogRead(rMotor1.iActualPositionAnalogInputPin));
+    Serial.print("  actual value pct:  ");
     Serial.println(readActualPositionPct(&rMotor1));
     delay(100);
     i++;
@@ -78,6 +82,26 @@ void stopMotor(TMotor* prMotor) {
 
 
 void setMotorSpeed(TMotor* prMotor, TMotorDir eMotorDir, byte iSpeed) {
+  if (eMotorDir!=Stop) {
+    if (rMotor1.bMotor_HighSpeedWasUsed) 
+      Serial.print("HS  ");
+//    Serial.print("set pct value:  ");
+//    Serial.print(readSetPositionPct(&rMotor1));
+//    Serial.print("  actual value:  ");
+//    Serial.print(analogRead(rMotor1.iActualPositionAnalogInputPin));
+//    Serial.print("  actual value pct:  ");
+//    Serial.print(readActualPositionPct(&rMotor1));
+//    Serial.print("  diff pct:  ");
+//    Serial.println(iDiffPct);
+    Serial.print("speed:  ");
+    Serial.print(iSpeed);
+    if (eMotorDir==CloseShutter)
+      Serial.println("  CLOSING");
+    if (eMotorDir==OpenShutter)
+      Serial.println("  OPENING");
+  } else
+    Serial.println("STOPPED");
+    
   //stopMotor(prMotor);
   
   switch (eMotorDir) {
@@ -92,13 +116,17 @@ void setMotorSpeed(TMotor* prMotor, TMotorDir eMotorDir, byte iSpeed) {
       digitalWrite(prMotor->iMotor_DirPinB, LOW);
       analogWrite(prMotor->iMotor_EnablePin, iSpeed);  // motor speed  
       break;
+
+    case Stop:
+      stopMotor(prMotor);
+      break;
   }
 }
 
 
 int readActualPositionPct(TMotor* prMotor) {
   int iClosedLimit = 773;
-  int iOpenedLimit = 875;
+  int iOpenedLimit = 888;
   int iRawValue = analogRead(prMotor->iActualPositionAnalogInputPin);
   int iRangeSize = iOpenedLimit - iClosedLimit;
   return round(100 * (iRawValue - iClosedLimit) / iRangeSize);
@@ -256,7 +284,7 @@ void setup()
 
   //motorAccelerationTestAndStop(&rMotor1);
 
-  //logPositionAndStop();
+//  logPositionAndStop();
   
 //  Serial.println("Seeking limits...");
 //
@@ -292,18 +320,23 @@ void setup()
 //}
 
 
-void decideDriveSpeedAndDirection(int iDiffPct, TMotorDir* peMotorDir_out, byte* piSpeed_out) {
-  if (abs(iDiffPct) > 75)
-    *piSpeed_out=200;
-    else  
-    if (abs(iDiffPct) > icThreshold)
-      *piSpeed_out=128;
-      else
-      *piSpeed_out=0;
-
+void decideDriveSpeedAndDirection(TMotor* prMotor, int iDiffPct, TMotorDir* peMotorDir_out, byte* piSpeed_out) {
+  if (abs(iDiffPct) > 25) {
+    prMotor->bMotor_HighSpeedWasUsed = true;
+    *piSpeed_out=128;
+  } else  
+    if (abs(iDiffPct) <= dcThresholdPct) {
+        prMotor->bMotor_HighSpeedWasUsed = false;
+        *piSpeed_out=0;
+    } else
+      if (prMotor->bMotor_HighSpeedWasUsed) 
+        *piSpeed_out=80;
+        else 
+        *piSpeed_out=100;
+  
   // decide direction
   *peMotorDir_out = iDiffPct > 0 ? OpenShutter : CloseShutter;
-  if (iDiffPct==0)
+  if (*piSpeed_out==0)
     *peMotorDir_out=Stop;    
 }
 
@@ -372,20 +405,12 @@ void loop()
     byte iSpeed;
   
     int iDiffPct = readSetPositionPct(&rMotor1) - readActualPositionPct(&rMotor1);
-    
-    Serial.print("set pct value:  ");
-    Serial.print(readSetPositionPct(&rMotor1));
-    Serial.print("  actual value:  ");
-    Serial.print(readActualPositionPct(&rMotor1));
-    Serial.print("  diff pct:  ");
-    Serial.println(iDiffPct);
-
-    decideDriveSpeedAndDirection(iDiffPct, &eMotorDir, &iSpeed);
+    decideDriveSpeedAndDirection(&rMotor1, iDiffPct, &eMotorDir, &iSpeed);
     setMotorSpeed(&rMotor1, eMotorDir, iSpeed);
         
-    iDiffPct = readSetPositionPct(&rMotor2) - readActualPositionPct(&rMotor2);
-    decideDriveSpeedAndDirection(iDiffPct, &eMotorDir, &iSpeed);
-    setMotorSpeed(&rMotor2, eMotorDir, iSpeed);
+//    iDiffPct = readSetPositionPct(&rMotor2) - readActualPositionPct(&rMotor2);
+//    decideDriveSpeedAndDirection(&rMotor2, iDiffPct, &eMotorDir, &iSpeed);
+//    setMotorSpeed(&rMotor2, eMotorDir, iSpeed);
         
     delay(1);
   }
