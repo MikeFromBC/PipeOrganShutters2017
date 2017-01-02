@@ -17,7 +17,7 @@ const int Motor1=1;
 const int Motor2=2;
 
 const int icSeekSpeed=128;
-const int icThreshold=3;
+const int icThreshold=5;
 
 struct TMotor {
   byte iMotorNum;
@@ -40,8 +40,14 @@ TMotor rMotor1, rMotor2;
 
 void logPosition() {
   int i =0;
-  while (i<150) {
-    Serial.println(readActualPosition(&rMotor1));
+  while (i<550) {
+    Serial.print("set value:  ");
+    Serial.print(analogRead(Motor1_SetPositionAnalogInputPin_TEST));
+
+    Serial.print("  set pct value:  ");
+    Serial.print(readSetPositionPct(&rMotor1));
+    Serial.print("  actual value:  ");
+    Serial.println(readActualPositionPct(&rMotor1));
     delay(100);
     i++;
   }
@@ -90,32 +96,34 @@ void setMotorSpeed(TMotor* prMotor, TMotorDir eMotorDir, byte iSpeed) {
 }
 
 
-int readActualPosition(TMotor* prMotor) {
-  return analogRead(prMotor->iActualPositionAnalogInputPin);
+int readActualPositionPct(TMotor* prMotor) {
+  int iClosedLimit = 773;
+  int iOpenedLimit = 875;
+  int iRawValue = analogRead(prMotor->iActualPositionAnalogInputPin);
+  int iRangeSize = iOpenedLimit - iClosedLimit;
+  return round(100 * (iRawValue - iClosedLimit) / iRangeSize);
 }
 
 
-int readSetPosition1() {
-  int iDiff = 400 - 250;
-  
-  int iValue = round(250 + 1.0* iDiff * analogRead(Motor1_SetPositionAnalogInputPin_TEST) / 1024);
+int readSetPosition1Pct() {
+  int iValue = round(100.0 * analogRead(Motor1_SetPositionAnalogInputPin_TEST) / 1024);
   
   return iValue;
 }
 
 
-int readSetPosition2() {
+int readSetPosition2Pct() {
   return 0; //analogRead(Motor2_ActualPositionAnalogInputPin);
 }
 
 
-int readSetPosition(TMotor* prMotor) {
+int readSetPositionPct(TMotor* prMotor) {
   switch (prMotor->iMotorNum) {
     case Motor1:  
-      return readSetPosition1();
+      return readSetPosition1Pct();
       
     case Motor2:  
-      return readSetPosition2();
+      return readSetPosition2Pct();
 
     default:    
       return 0;
@@ -123,106 +131,108 @@ int readSetPosition(TMotor* prMotor) {
 }
 
 
-void findLimit(TMotor* prMotor, TMotorDir eMotorDir) {
-  unsigned long iStarted = millis();
-  const int iOverallTimeoutMS=1000;
+//void findLimit(TMotor* prMotor, TMotorDir eMotorDir) {
+//  unsigned long iStarted = millis();
+//  const int iOverallTimeoutMS=1000;
+//
+//  setMotorSpeed(prMotor, eMotorDir, icSeekSpeed); 
+//  
+//  int iLastPosition=-1;
+//  int iNewPosition=0;
+//  bool bTimeout;
+//  bool bFinished = false;
+//
+//  // give it a chance to start moving before looking...
+//  delay(50);
+//  
+//  do {
+//    iLastPosition = iNewPosition;
+//    
+//    delay(1);
+//
+//    iNewPosition = readActualPosition(prMotor);
+//
+//    if (prMotor->iMotorNum==1) {
+//      Serial.print(eMotorDir);
+//      Serial.print(" new pos:  ");
+//      Serial.print(iNewPosition);
+//      Serial.print(" time delta:  ");
+//      Serial.println(millis() - iStarted);
+//    }
+//
+//    switch (eMotorDir) {
+//      case CloseShutter:
+//        if (iNewPosition < 250) {
+//          bFinished=true;
+//          Serial.println("CLOSE FINISHED");
+//        }
+//        break;
+//
+//      case OpenShutter:
+//        if (iNewPosition > 350) {
+//          bFinished=true;
+//          Serial.println("OPEN FINISHED");
+//        }
+//        break;
+//    }
+//    
+//    bTimeout = ((millis() - iStarted) > iOverallTimeoutMS);
+//  } while ((!bTimeout) && (abs(iLastPosition - iNewPosition) > icThreshold) && (!bFinished));
+//
+//  if (bTimeout)
+//    Serial.println("TIMEOUT!");
+//
+//  if (eMotorDir==OpenShutter) 
+//    prMotor->iMemory_FullOpenPosition = iNewPosition;
+//    else
+//    if (eMotorDir==CloseShutter) 
+//      prMotor->iMemory_FullClosedPosition = iNewPosition;
+//
+//  stopMotor(prMotor);
+//}
 
-  setMotorSpeed(prMotor, eMotorDir, icSeekSpeed); 
-  
-  int iLastPosition=-1;
-  int iNewPosition=0;
-  bool bTimeout;
-  bool bFinished = false;
 
-  // give it a chance to start moving before looking...
-  delay(50);
-  
-  do {
-    iLastPosition = iNewPosition;
-    
-    delay(1);
+//void motorAccelerationTestAndStop(TMotor* prMotor) {
+//  unsigned long iStarted = millis();
+//  const int iOverallTimeoutMS=100;
+//  const int icPointCount=300;
+//  word iaTime[icPointCount];
+//  word iaValue[icPointCount];
+//  
+//  for (int i=0; i<icPointCount; i++) {
+//    iaTime[i]=0;
+//    iaValue[i]=0;
+//  }
+//
+//  setMotorSpeed(prMotor, OpenShutter, icSeekSpeed); 
+//  
+//  int iPoint=0;
+//  do {
+//    iaTime[iPoint]=millis() - iStarted;
+//    iaValue[iPoint]=readActualPosition(prMotor);
+//    iPoint++;    
+//
+//    delay(10);
+//    
+//    if ((millis() - iStarted) > 300)
+//      break;
+//  } while (1);
+//
+//  stopMotor(prMotor);
+//  
+//  for (int i=0; i<icPointCount; i++) {
+//    Serial.print(iaTime[i]);
+//    Serial.print("\t");
+//    Serial.println(iaValue[i]);
+//  }
+//
+//  Serial.println("TEST IS FINISHED!");
+//
+//  while (1) {
+//    
+//  }
+//}
 
-    iNewPosition = readActualPosition(prMotor);
-
-    if (prMotor->iMotorNum==1) {
-      Serial.print(eMotorDir);
-      Serial.print(" new pos:  ");
-      Serial.print(iNewPosition);
-      Serial.print(" time delta:  ");
-      Serial.println(millis() - iStarted);
-    }
-
-    switch (eMotorDir) {
-      case CloseShutter:
-        if (iNewPosition < 250) {
-          bFinished=true;
-          Serial.println("CLOSE FINISHED");
-        }
-        break;
-
-      case OpenShutter:
-        if (iNewPosition > 350) {
-          bFinished=true;
-          Serial.println("OPEN FINISHED");
-        }
-        break;
-    }
-    
-    bTimeout = ((millis() - iStarted) > iOverallTimeoutMS);
-  } while ((!bTimeout) && (abs(iLastPosition - iNewPosition) > icThreshold) && (!bFinished));
-
-  if (bTimeout)
-    Serial.println("TIMEOUT!");
-
-  if (eMotorDir==OpenShutter) 
-    prMotor->iMemory_FullOpenPosition = iNewPosition;
-    else
-    if (eMotorDir==CloseShutter) 
-      prMotor->iMemory_FullClosedPosition = iNewPosition;
-
-  stopMotor(prMotor);
-}
-
-void motorAccelerationTestAndStop(TMotor* prMotor) {
-  unsigned long iStarted = millis();
-  const int iOverallTimeoutMS=100;
-  const int icPointCount=300;
-  word iaTime[icPointCount];
-  word iaValue[icPointCount];
-  
-  for (int i=0; i<icPointCount; i++) {
-    iaTime[i]=0;
-    iaValue[i]=0;
-  }
-
-  setMotorSpeed(prMotor, OpenShutter, icSeekSpeed); 
-  
-  int iPoint=0;
-  do {
-    iaTime[iPoint]=millis() - iStarted;
-    iaValue[iPoint]=readActualPosition(prMotor);
-    iPoint++;    
-
-    delay(10);
-    
-    if ((millis() - iStarted) > 300)
-      break;
-  } while (1);
-
-  stopMotor(prMotor);
-  
-  for (int i=0; i<icPointCount; i++) {
-    Serial.print(iaTime[i]);
-    Serial.print("\t");
-    Serial.println(iaValue[i]);
-  }
-
-  Serial.println("TEST IS FINISHED!");
-
-  while (1) {
-    
-  }
-}
 
 void setup()
 {
@@ -245,6 +255,8 @@ void setup()
   configurePort(&rMotor2);
 
   //motorAccelerationTestAndStop(&rMotor1);
+
+  //logPositionAndStop();
   
 //  Serial.println("Seeking limits...");
 //
@@ -268,88 +280,88 @@ void setup()
 }
 
 
-int actualPositionPct(TMotor* prMotor) {
-  int iMin = prMotor->iMemory_FullClosedPosition;
-  int iMax = prMotor->iMemory_FullOpenPosition;
-  int iDiff = iMax - iMin;
+//int actualPositionPct(TMotor* prMotor) {
+//  int iMin = prMotor->iMemory_FullClosedPosition;
+//  int iMax = prMotor->iMemory_FullOpenPosition;
+//  int iDiff = iMax - iMin;
+//
+//  if (iDiff==0)
+//    return 0;
+//  
+//  int iPosPct = 100 * (readActualPosition(prMotor) - iMin) / iDiff;
+//}
 
-  if (iDiff==0)
-    return 0;
-  
-  int iPosPct = 100 * (readActualPosition(prMotor) - iMin) / iDiff;
-}
 
-
-void decideDriveSpeedAndDirection(int iDiff, TMotorDir* peMotorDir_out, byte* piSpeed_out) {
-  if (abs(iDiff) > 25)
+void decideDriveSpeedAndDirection(int iDiffPct, TMotorDir* peMotorDir_out, byte* piSpeed_out) {
+  if (abs(iDiffPct) > 75)
     *piSpeed_out=200;
     else  
-    if (abs(iDiff) > icThreshold)
+    if (abs(iDiffPct) > icThreshold)
       *piSpeed_out=128;
       else
       *piSpeed_out=0;
 
   // decide direction
-  *peMotorDir_out = iDiff > 0 ? OpenShutter : CloseShutter;
-  if (iDiff==0)
+  *peMotorDir_out = iDiffPct > 0 ? OpenShutter : CloseShutter;
+  if (iDiffPct==0)
     *peMotorDir_out=Stop;    
 }
 
 
-void driveToPosition(TMotor* prMotor, int iSetPos) {
-  TMotorDir eMotorDir;
-  byte iSpeed;
-
-  do {
-    do {
-      int iDiff = iSetPos - readActualPosition(prMotor);
-      
-      decideDriveSpeedAndDirection(iDiff, &eMotorDir, &iSpeed);
-  
-      setMotorSpeed(prMotor, eMotorDir, iSpeed);
-          
-      delay(1);
-    } while ((iSpeed!=0) && (eMotorDir!=Stop));
-    
-    stopMotor(prMotor);
-  
-    Serial.print("initial stop ");
-    Serial.println(readActualPosition(prMotor));
-  
-    delay(100);
-  } while (abs(readActualPosition(prMotor) - iSetPos) > icThreshold);
-
-  Serial.println("STOPPED");
-}
-
-
-void runTests() {
-  while (1) {
-    driveToPosition(&rMotor1, 400);
-
-    delay(2000);
-
-    driveToPosition(&rMotor1, 390);
-
-    delay(2000);
-
-    driveToPosition(&rMotor1, 350);
-
-    delay(2000);
-
-    driveToPosition(&rMotor1, 250);
-
-    delay(2000);
-
-    driveToPosition(&rMotor1, 350);
-
-    delay(2000);
-
-    driveToPosition(&rMotor1, 390);
-
-    delay(5000);
-  }
-}
+//void driveToPosition(TMotor* prMotor, int iSetPos) {
+//  TMotorDir eMotorDir;
+//  byte iSpeed;
+//
+//  do {
+//    do {
+//      int iDiff = iSetPos - readActualPosition(prMotor);
+//      
+//      decideDriveSpeedAndDirection(iDiff, &eMotorDir, &iSpeed);
+//  
+//      setMotorSpeed(prMotor, eMotorDir, iSpeed);
+//          
+//      delay(1);
+//    } while ((iSpeed!=0) && (eMotorDir!=Stop));
+//    
+//    stopMotor(prMotor);
+//  
+//    Serial.print("initial stop ");
+//    Serial.println(readActualPosition(prMotor));
+//  
+//    delay(100);
+//  } while (abs(readActualPositionPct(prMotor) - iSetPos) > icThreshold);
+//
+//  Serial.println("STOPPED");
+//}
+//
+//
+//void runTests() {
+//  while (1) {
+//    driveToPosition(&rMotor1, 400);
+//
+//    delay(2000);
+//
+//    driveToPosition(&rMotor1, 390);
+//
+//    delay(2000);
+//
+//    driveToPosition(&rMotor1, 350);
+//
+//    delay(2000);
+//
+//    driveToPosition(&rMotor1, 250);
+//
+//    delay(2000);
+//
+//    driveToPosition(&rMotor1, 350);
+//
+//    delay(2000);
+//
+//    driveToPosition(&rMotor1, 390);
+//
+//    delay(5000);
+//  }
+//}
 
 void loop()
 {  
@@ -359,12 +371,20 @@ void loop()
     TMotorDir eMotorDir;
     byte iSpeed;
   
-    int iDiff = readSetPosition(&rMotor1) - readActualPosition(&rMotor1);
-    decideDriveSpeedAndDirection(iDiff, &eMotorDir, &iSpeed);
+    int iDiffPct = readSetPositionPct(&rMotor1) - readActualPositionPct(&rMotor1);
+    
+    Serial.print("set pct value:  ");
+    Serial.print(readSetPositionPct(&rMotor1));
+    Serial.print("  actual value:  ");
+    Serial.print(readActualPositionPct(&rMotor1));
+    Serial.print("  diff pct:  ");
+    Serial.println(iDiffPct);
+
+    decideDriveSpeedAndDirection(iDiffPct, &eMotorDir, &iSpeed);
     setMotorSpeed(&rMotor1, eMotorDir, iSpeed);
         
-    iDiff = readSetPosition(&rMotor2) - readActualPosition(&rMotor2);
-    decideDriveSpeedAndDirection(iDiff, &eMotorDir, &iSpeed);
+    iDiffPct = readSetPositionPct(&rMotor2) - readActualPositionPct(&rMotor2);
+    decideDriveSpeedAndDirection(iDiffPct, &eMotorDir, &iSpeed);
     setMotorSpeed(&rMotor2, eMotorDir, iSpeed);
         
     delay(1);
