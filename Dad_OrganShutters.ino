@@ -31,8 +31,11 @@ struct TMotor {
   byte iMotor_EnablePin;
   boolean bMotor_HighSpeedWasUsed;
   
-  int iMemory_FullClosedPosition;
-  int iMemory_FullOpenPosition;
+  int iClosedLimit;
+  int iOpenedLimit;
+
+//  int iMemory_FullClosedPosition;
+//  int iMemory_FullOpenPosition;
 };
 
 enum TMotorDir {CloseShutter, Stop, OpenShutter};
@@ -125,37 +128,14 @@ void setMotorSpeed(TMotor* prMotor, TMotorDir eMotorDir, byte iSpeed) {
 
 
 int readActualPositionPct(TMotor* prMotor) {
-  int iClosedLimit = 773;
-  int iOpenedLimit = 888;
   int iRawValue = analogRead(prMotor->iActualPositionAnalogInputPin);
-  int iRangeSize = iOpenedLimit - iClosedLimit;
-  return round(100 * (iRawValue - iClosedLimit) / iRangeSize);
-}
-
-
-int readSetPosition1Pct() {
-  int iValue = round(100.0 * analogRead(Motor1_SetPositionAnalogInputPin_TEST) / 1024);
-  
-  return iValue;
-}
-
-
-int readSetPosition2Pct() {
-  return 0; //analogRead(Motor2_ActualPositionAnalogInputPin);
+  int iRangeSize = prMotor->iOpenedLimit - prMotor->iClosedLimit;
+  return round(100 * (iRawValue - prMotor->iClosedLimit) / iRangeSize);
 }
 
 
 int readSetPositionPct(TMotor* prMotor) {
-  switch (prMotor->iMotorNum) {
-    case Motor1:  
-      return readSetPosition1Pct();
-      
-    case Motor2:  
-      return readSetPosition2Pct();
-
-    default:    
-      return 0;
-  }
+  return round(100.0 * analogRead(prMotor->iSetPositionAnalogInputPin_TEST) / 1024);
 }
 
 
@@ -272,6 +252,8 @@ void setup()
   rMotor1.iMotor_DirPinA=In1_Motor1DirA;
   rMotor1.iMotor_DirPinB=In2_Motor1DirB;
   rMotor1.iMotor_EnablePin=En1_Motor1Enable;
+  rMotor1.iClosedLimit = 646;
+  rMotor1.iOpenedLimit = 834;
   configurePort(&rMotor1);
   
   rMotor2.iMotorNum=Motor2;
@@ -280,6 +262,8 @@ void setup()
   rMotor2.iMotor_DirPinA=In3_Motor2DirA;
   rMotor2.iMotor_DirPinB=In4_Motor2DirB;
   rMotor2.iMotor_EnablePin=En2_Motor2Enable;
+  rMotor2.iClosedLimit = 773;
+  rMotor2.iOpenedLimit = 888;
   configurePort(&rMotor2);
 
   //motorAccelerationTestAndStop(&rMotor1);
@@ -325,6 +309,7 @@ void decideDriveSpeedAndDirection(TMotor* prMotor, int iDiffPct, TMotorDir* peMo
     prMotor->bMotor_HighSpeedWasUsed = true;
     *piSpeed_out=128;
   } else  
+    // within one step?  ok!
     if (abs(iDiffPct) <= dcThresholdPct) {
         prMotor->bMotor_HighSpeedWasUsed = false;
         *piSpeed_out=0;
@@ -396,9 +381,20 @@ void decideDriveSpeedAndDirection(TMotor* prMotor, int iDiffPct, TMotorDir* peMo
 //  }
 //}
 
+void logPositions() {
+  while (1) {
+    Serial.print("Shutter 1 position:  ");
+    int iRawValue = analogRead(rMotor1.iActualPositionAnalogInputPin);
+    Serial.println(iRawValue);
+
+    delay(1000);
+  }
+}
+
 void loop()
-{  
-  //runTests();
+{ 
+//  logPositions(); 
+//  runTests();
 
   while (1) {
     TMotorDir eMotorDir;
