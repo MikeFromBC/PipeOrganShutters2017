@@ -6,6 +6,10 @@ const int In4_Motor2DirB=8;
 const int En1_Motor1Enable=9;
 const int En2_Motor2Enable=10;
 
+const int LED_ERROR=LED_BUILTIN;
+
+const int icMotorTimeoutMS = 10000;
+
 // analog inputs
 const int Motor1_ActualPositionAnalogInputPin=A0;
 const int Motor2_ActualPositionAnalogInputPin=A1;
@@ -34,6 +38,8 @@ struct TMotor {
   int iClosedLimit;
   int iOpenedLimit;
 
+  unsigned long iStartTime;
+  
 //  int iMemory_FullClosedPosition;
 //  int iMemory_FullOpenPosition;
 };
@@ -43,30 +49,30 @@ enum TMotorDir {CloseShutter, Stop, OpenShutter};
 TMotor rMotor1, rMotor2;
 
 
-void logPosition() {
-  int i =0;
-  while (i<550) {
-    Serial.print("set value:  ");
-    Serial.print(analogRead(Motor1_SetPositionAnalogInputPin_TEST));
-
-    Serial.print("  set pct value:  ");
-    Serial.print(readSetPositionPct(&rMotor1));
-    Serial.print("  actual value:  ");
-    Serial.print(analogRead(rMotor1.iActualPositionAnalogInputPin));
-    Serial.print("  actual value pct:  ");
-    Serial.println(readActualPositionPct(&rMotor1));
-    delay(100);
-    i++;
-  }
-}
-
-
-void logPositionAndStop() {
-  logPosition();
-  
-  while (1) {
-  }    
-}
+//void logPosition() {
+//  int i =0;
+//  while (i<550) {
+//    Serial.print("set value:  ");
+//    Serial.print(analogRead(Motor1_SetPositionAnalogInputPin_TEST));
+//
+//    Serial.print("  set pct value:  ");
+//    Serial.print(readSetPositionPct(&rMotor1));
+//    Serial.print("  actual value:  ");
+//    Serial.print(analogRead(rMotor1.iActualPositionAnalogInputPin));
+//    Serial.print("  actual value pct:  ");
+//    Serial.println(readActualPositionPct(&rMotor1));
+//    delay(100);
+//    i++;
+//  }
+//}
+//
+//
+//void logPositionAndStop() {
+//  logPosition();
+//  
+//  while (1) {
+//  }    
+//}
 
 
 void configurePort(TMotor* prMotor) {
@@ -254,6 +260,7 @@ void setup()
   rMotor1.iMotor_EnablePin=En1_Motor1Enable;
   rMotor1.iClosedLimit = 646;
   rMotor1.iOpenedLimit = 834;
+  rMotor1.iStartTime=0;
   configurePort(&rMotor1);
   
   rMotor2.iMotorNum=Motor2;
@@ -264,9 +271,12 @@ void setup()
   rMotor2.iMotor_EnablePin=En2_Motor2Enable;
   rMotor2.iClosedLimit = 773;
   rMotor2.iOpenedLimit = 888;
+  rMotor2.iStartTime=0;
   configurePort(&rMotor2);
 
   //motorAccelerationTestAndStop(&rMotor1);
+
+  pinMode(LED_ERROR, OUTPUT);
 
 //  logPositionAndStop();
   
@@ -303,22 +313,56 @@ void setup()
 //  int iPosPct = 100 * (readActualPosition(prMotor) - iMin) / iDiff;
 //}
 
+void setMotorStarted(TMotor* prMotor, bool* pbError) {
+  if (!prMotor->iStartTime)
+    prMotor->iStartTime=millis();
+
+  *pbError=(millis() - prMotor->iStartTime > icMotorTimeoutMS);
+  if (*pbError) {
+    digitalWrite(LED_ERROR, HIGH);   // turn the LED on (HIGH is the voltage level)
+    delay(1000);                       // wait for a second
+    digitalWrite(LED_ERROR, LOW);    // turn the LED off by making the voltage LOW
+    delay(1000);                       // wait for a second    
+  }
+
+}
+
+
+void setMotorStopped(TMotor* prMotor) {
+  prMotor->iStartTime=0;
+
+  digitalWrite(LED_ERROR, LOW);    // turn the LED off by making the voltage LOW
+}
+
 
 void decideDriveSpeedAndDirection(TMotor* prMotor, int iDiffPct, TMotorDir* peMotorDir_out, byte* piSpeed_out) {
+  bool bError;
+  
+  // big change?  use high speed.
   if (abs(iDiffPct) > 25) {
     prMotor->bMotor_HighSpeedWasUsed = true;
-    *piSpeed_out=128;
+    setMotorStarted(prMotor, &bError);
+    if (bError)
+      *piSpeed_out=0;
+      else
+      *piSpeed_out=180;
   } else  
-    // within one step?  ok!
+    // within one step?  ok, stop
     if (abs(iDiffPct) <= dcThresholdPct) {
         prMotor->bMotor_HighSpeedWasUsed = false;
+        setMotorStopped(prMotor);
         *piSpeed_out=0;
-    } else
-      if (prMotor->bMotor_HighSpeedWasUsed) 
-        *piSpeed_out=80;
-        else 
-        *piSpeed_out=100;
-  
+    } else {
+      setMotorStarted(prMotor, &bError);
+      if (bError)
+        *piSpeed_out=0;
+        else
+        if (prMotor->bMotor_HighSpeedWasUsed) 
+          *piSpeed_out=100;
+          else 
+          *piSpeed_out=140;
+    }
+    
   // decide direction
   *peMotorDir_out = iDiffPct > 0 ? OpenShutter : CloseShutter;
   if (*piSpeed_out==0)
