@@ -1,3 +1,5 @@
+#include <EEPROM.h>
+
 // digital outputs
 const int In1_Motor1DirA=5;
 const int In2_Motor1DirB=6;
@@ -8,450 +10,368 @@ const int En2_Motor2Enable=10;
 
 const int LED_ERROR=LED_BUILTIN;
 
-const int icMotorTimeoutMS = 10000;
-
 // analog inputs
 const int Motor1_ActualPositionAnalogInputPin=A0;
 const int Motor2_ActualPositionAnalogInputPin=A1;
 
-const int Motor1_SetPositionAnalogInputPin_TEST=A2;
-const int Motor2_SetPositionAnalogInputPin_TEST=A3;
-
-const int Motor1=1;
-const int Motor2=2;
-
-const int icShutterSteps=16;
-const int icSeekSpeed=128;
-const int dcThresholdPct=100 / icShutterSteps;
-
-struct TMotor {
-  byte iMotorNum;
-  byte iActualPositionAnalogInputPin;
-  byte iSetPositionAnalogInputPin_TEST;
-  
-  // motor control particulars
-  byte iMotor_DirPinA;
-  byte iMotor_DirPinB;
-  byte iMotor_EnablePin;
-  boolean bMotor_HighSpeedWasUsed;
-  
-  int iClosedLimit;
-  int iOpenedLimit;
-
-  unsigned long iStartTime;
-  
-//  int iMemory_FullClosedPosition;
-//  int iMemory_FullOpenPosition;
-};
 
 enum TMotorDir {CloseShutter, Stop, OpenShutter};
 
-TMotor rMotor1, rMotor2;
+String sCommandBuffer;
 
-
-//void logPosition() {
-//  int i =0;
-//  while (i<550) {
-//    Serial.print("set value:  ");
-//    Serial.print(analogRead(Motor1_SetPositionAnalogInputPin_TEST));
-//
-//    Serial.print("  set pct value:  ");
-//    Serial.print(readSetPositionPct(&rMotor1));
-//    Serial.print("  actual value:  ");
-//    Serial.print(analogRead(rMotor1.iActualPositionAnalogInputPin));
-//    Serial.print("  actual value pct:  ");
-//    Serial.println(readActualPositionPct(&rMotor1));
-//    delay(100);
-//    i++;
-//  }
-//}
-//
-//
-//void logPositionAndStop() {
-//  logPosition();
-//  
-//  while (1) {
-//  }    
-//}
-
-
-void configurePort(TMotor* prMotor) {
-  pinMode(prMotor->iActualPositionAnalogInputPin, INPUT);  
-  pinMode(prMotor->iSetPositionAnalogInputPin_TEST, INPUT);  
-  
-  pinMode(prMotor->iMotor_DirPinA, OUTPUT);
-  pinMode(prMotor->iMotor_DirPinB, OUTPUT);  
-  pinMode(prMotor->iMotor_EnablePin, OUTPUT);    
-}
-
-
-void stopMotor(TMotor* prMotor) {
-  analogWrite(prMotor->iMotor_EnablePin, 0);  // motor speed  
-}
-
-
-void setMotorSpeed(TMotor* prMotor, TMotorDir eMotorDir, byte iSpeed) {
-  if (eMotorDir!=Stop) {
-//    if (rMotor1.bMotor_HighSpeedWasUsed) 
-//      Serial.print("HS  ");
-
-//    Serial.print("set pct value:  ");
-//    Serial.print(readSetPositionPct(&rMotor1));
-//    Serial.print("  actual value:  ");
-//    Serial.print(analogRead(rMotor1.iActualPositionAnalogInputPin));
-//    Serial.print("  actual value pct:  ");
-//    Serial.print(readActualPositionPct(&rMotor1));
-//    Serial.print("  diff pct:  ");
-//    Serial.println(iDiffPct);
-
-//    Serial.print("speed:  ");
-//    Serial.print(iSpeed);
-//    if (eMotorDir==CloseShutter)
-//      Serial.println("  CLOSING");
-//    if (eMotorDir==OpenShutter)
-//      Serial.println("  OPENING");
-  } else
-    Serial.println("STOPPED");
+class Motor
+{
+  private:
+    const int icMotorTimeoutMS = 30000;
+    const int icShutterSteps=16;
+    const int dcDiffThresholdPct=100 / icShutterSteps;
+    const int MaxADCValue = 1023;
+    const int UseSignalFromSyndyne = -1;
     
-  //stopMotor(prMotor);
+    byte m_iActualPositionAnalogInputPin;
+    
+    // motor control particulars
+    byte m_iMotor_DirPinA;
+    byte m_iMotor_DirPinB;
+    byte m_iMotor_EnablePin;
+    boolean m_bMotor_HighSpeedWasUsed;
+
+    int m_iCalMemoryStart;
+    
+    int m_iClosedLimit;
+    int m_iOpenedLimit;
+
+    TMotorDir m_eChosenMotorDir;
+    byte m_iChosenSpeed;
   
-  switch (eMotorDir) {
-    case OpenShutter:
-      digitalWrite(prMotor->iMotor_DirPinA, LOW);  // rotate forward
-      digitalWrite(prMotor->iMotor_DirPinB, HIGH);
-      analogWrite(prMotor->iMotor_EnablePin, iSpeed);  // motor speed  
-      break;
+    unsigned long m_iStartTime;
 
-    case CloseShutter:
-      digitalWrite(prMotor->iMotor_DirPinA, HIGH);  // rotate reverse
-      digitalWrite(prMotor->iMotor_DirPinB, LOW);
-      analogWrite(prMotor->iMotor_EnablePin, iSpeed);  // motor speed  
-      break;
+    int readSetPosition() {
+    //  return analogRead(m_iSetPositionAnalogInputPin_TEST) / MaxADCValue);
+      return PIND & 15;
+    }
 
-    case Stop:
-      stopMotor(prMotor);
-      break;
-  }
-}
+      
+    int readSetPositionPct() {
+    //  return round(100.0 * readSetPosition() / MaxADCValue);
+      return round(100.0 * readSetPosition() / 15);
+    }
 
-
-int readActualPositionPct(TMotor* prMotor) {
-  int iRawValue = analogRead(prMotor->iActualPositionAnalogInputPin);
-  int iRangeSize = prMotor->iOpenedLimit - prMotor->iClosedLimit;
-  return round(100 * (iRawValue - prMotor->iClosedLimit) / iRangeSize);
-}
-
-
-int readSetPositionPct(TMotor* prMotor) {
-//  return round(100.0 * analogRead(prMotor->iSetPositionAnalogInputPin_TEST) / 1024);
-  return round(100.0 * (PIND & 15) / 15);
-}
+      
+     int readRawActualPosition() {
+      return analogRead(m_iActualPositionAnalogInputPin);
+    }
+    
+    
+    int readActualPositionPct() {
+      int iRawValue = readRawActualPosition();
+      int iRangeSize = m_iOpenedLimit - m_iClosedLimit;
+      return round(100 * (iRawValue - m_iClosedLimit) / iRangeSize);
+    }
 
 
-//void findLimit(TMotor* prMotor, TMotorDir eMotorDir) {
-//  unsigned long iStarted = millis();
-//  const int iOverallTimeoutMS=1000;
-//
-//  setMotorSpeed(prMotor, eMotorDir, icSeekSpeed); 
+//    void logPositionNow() 
+//    {
+//      Serial.print("set value:  % ");
+//      Serial.print(readSetPosition());
 //  
-//  int iLastPosition=-1;
-//  int iNewPosition=0;
-//  bool bTimeout;
-//  bool bFinished = false;
-//
-//  // give it a chance to start moving before looking...
-//  delay(50);
-//  
-//  do {
-//    iLastPosition = iNewPosition;
-//    
-//    delay(1);
-//
-//    iNewPosition = readActualPosition(prMotor);
-//
-//    if (prMotor->iMotorNum==1) {
-//      Serial.print(eMotorDir);
-//      Serial.print(" new pos:  ");
-//      Serial.print(iNewPosition);
-//      Serial.print(" time delta:  ");
-//      Serial.println(millis() - iStarted);
+//      Serial.print("  set pct value:  ");
+//      Serial.print(readSetPositionPct());
+//      Serial.print("  actual value:  ");
+//      Serial.print(analogRead(m_iActualPositionAnalogInputPin));
+//      Serial.print("  actual value pct:  ");
+//      Serial.println(readActualPositionPct());
+//      delay(100);
 //    }
+    
+
+//    void logDecisionMaking() 
+//    {
+//      if (m_eChosenMotorDir!=Stop) {
+//        if (m_bMotor_HighSpeedWasUsed) 
+//          Serial.print("HS  ");
 //
-//    switch (eMotorDir) {
-//      case CloseShutter:
-//        if (iNewPosition < 250) {
-//          bFinished=true;
-//          Serial.println("CLOSE FINISHED");
-//        }
-//        break;
-//
-//      case OpenShutter:
-//        if (iNewPosition > 350) {
-//          bFinished=true;
-//          Serial.println("OPEN FINISHED");
-//        }
-//        break;
+//        Serial.print("set pct value:  ");
+//        Serial.print(readSetPositionPct());
+//        Serial.print("  actual value:  ");
+//        Serial.print(analogRead(m_iActualPositionAnalogInputPin));
+//        Serial.print("  actual value pct:  ");
+//        Serial.print(readActualPositionPct());
+//        Serial.print("  speed:  ");
+//        Serial.print(iSpeed);
+//        
+//        if (m_eChosenMotorDir==CloseShutter)
+//          Serial.println("  CLOSING");
+//        
+//        if (m_eChosenMotorDir==OpenShutter)
+//          Serial.println("  OPENING");
+//      } else
+//        Serial.println("STOPPED");        
 //    }
-//    
-//    bTimeout = ((millis() - iStarted) > iOverallTimeoutMS);
-//  } while ((!bTimeout) && (abs(iLastPosition - iNewPosition) > icThreshold) && (!bFinished));
-//
-//  if (bTimeout)
-//    Serial.println("TIMEOUT!");
-//
-//  if (eMotorDir==OpenShutter) 
-//    prMotor->iMemory_FullOpenPosition = iNewPosition;
-//    else
-//    if (eMotorDir==CloseShutter) 
-//      prMotor->iMemory_FullClosedPosition = iNewPosition;
-//
-//  stopMotor(prMotor);
-//}
+
+    void loadLimitsFromEEPROM() {
+      m_iClosedLimit = eeprom_read_word(m_iCalMemoryStart);
+      m_iOpenedLimit = eeprom_read_word(m_iCalMemoryStart + sizeof(int));
+    }
 
 
-//void motorAccelerationTestAndStop(TMotor* prMotor) {
-//  unsigned long iStarted = millis();
-//  const int iOverallTimeoutMS=100;
-//  const int icPointCount=300;
-//  word iaTime[icPointCount];
-//  word iaValue[icPointCount];
-//  
-//  for (int i=0; i<icPointCount; i++) {
-//    iaTime[i]=0;
-//    iaValue[i]=0;
-//  }
-//
-//  setMotorSpeed(prMotor, OpenShutter, icSeekSpeed); 
-//  
-//  int iPoint=0;
-//  do {
-//    iaTime[iPoint]=millis() - iStarted;
-//    iaValue[iPoint]=readActualPosition(prMotor);
-//    iPoint++;    
-//
-//    delay(10);
-//    
-//    if ((millis() - iStarted) > 300)
-//      break;
-//  } while (1);
-//
-//  stopMotor(prMotor);
-//  
-//  for (int i=0; i<icPointCount; i++) {
-//    Serial.print(iaTime[i]);
-//    Serial.print("\t");
-//    Serial.println(iaValue[i]);
-//  }
-//
-//  Serial.println("TEST IS FINISHED!");
-//
-//  while (1) {
-//    
-//  }
-//}
+    void saveLimitsToEEPROM() {
+      eeprom_write_word(m_iCalMemoryStart, m_iClosedLimit);
+      eeprom_write_word(m_iCalMemoryStart + sizeof(int), m_iOpenedLimit);
 
+      // clears any timeout
+      m_iStartTime=millis();
+    }
+
+
+    void ForgetStartTime()
+    {
+      m_iStartTime = 0;
+      m_bMotor_HighSpeedWasUsed = false;
+    }
+
+    void turnOffErrorLED()
+    {
+      digitalWrite(LED_ERROR, LOW);  
+    }
+    
+
+    void turnOnErrorLED()
+    {
+      digitalWrite(LED_ERROR, HIGH);  
+    }
+    
+
+    void configurePort() 
+    {
+      pinMode(m_iActualPositionAnalogInputPin, INPUT);  
+      
+      pinMode(m_iMotor_DirPinA, OUTPUT);
+      pinMode(m_iMotor_DirPinB, OUTPUT);  
+      pinMode(m_iMotor_EnablePin, OUTPUT);    
+    }
+
+    
+    void setMotorSpeed() {
+      switch (m_eChosenMotorDir) {
+        case OpenShutter:
+          digitalWrite(m_iMotor_DirPinA, LOW);  // rotate forward
+          digitalWrite(m_iMotor_DirPinB, HIGH);
+          analogWrite(m_iMotor_EnablePin, m_iChosenSpeed);  // motor speed  
+          break;
+    
+        case CloseShutter:
+          digitalWrite(m_iMotor_DirPinA, HIGH);  // rotate reverse
+          digitalWrite(m_iMotor_DirPinB, LOW);
+          analogWrite(m_iMotor_EnablePin, m_iChosenSpeed);  // motor speed  
+          break;
+    
+        case Stop:
+          analogWrite(m_iMotor_EnablePin, 0);  // motor speed  
+          break;
+      }
+    }
+    
+
+    void decideSpeedAndDirection(int iForcedSetPct) {
+       
+      // decide speed!
+
+      int iSetPct;
+      
+      if (iForcedSetPct == UseSignalFromSyndyne)
+        iSetPct = readSetPositionPct();
+        else
+        iSetPct = iForcedSetPct;
+      
+      int iDiffPct = iSetPct - readActualPositionPct();
+
+      // big change?  use high speed.
+      if (abs(iDiffPct) > 25) {
+        m_bMotor_HighSpeedWasUsed = true;
+        m_iChosenSpeed = 180;
+      } else  
+        // just a short distance away?  drive slowly (or slow down)
+        if (abs(iDiffPct) > dcDiffThresholdPct) {
+          if (m_bMotor_HighSpeedWasUsed) 
+            m_iChosenSpeed = 100;
+            else 
+            m_iChosenSpeed = 190;
+        } else {
+            // stop!
+            m_bMotor_HighSpeedWasUsed = false;
+            m_iChosenSpeed = 0;
+        }
+
+      // prepare for tracking motor start time
+      if ((m_iChosenSpeed) && (!m_iStartTime))
+          m_iStartTime=millis();
+          else
+          m_iStartTime=0;
+        
+      // decide direction
+      m_eChosenMotorDir = iDiffPct > 0 ? OpenShutter : CloseShutter;
+
+      // check for error conditions
+      // if error, choose speed of 0 and flash the error LED
+
+      int iFlashTmp;
+    
+      bool bError=((millis() - m_iStartTime > icMotorTimeoutMS) || (readRawActualPosition()==MaxADCValue));
+      if (bError) {
+        iFlashTmp = millis() / 500;
+    
+        if (iFlashTmp % 2==1) 
+          turnOnErrorLED();
+          else
+          turnOffErrorLED();
+
+        m_iChosenSpeed = 0; 
+      } else 
+          turnOffErrorLED();
+
+      if (m_iChosenSpeed==0)
+        m_eChosenMotorDir=Stop;   
+    }
+
+    
+  public:
+    Motor(byte iActualPositionAnalogInputPin,
+          // motor control particulars
+          byte iMotor_DirPinA,
+          byte iMotor_DirPinB,
+          byte iMotor_EnablePin,
+          int iCalMemoryStart) {
+      m_iActualPositionAnalogInputPin = iActualPositionAnalogInputPin;
+      
+      // motor control particulars
+      m_iMotor_DirPinA = iMotor_DirPinA;
+      m_iMotor_DirPinB = iMotor_DirPinB;
+      m_iMotor_EnablePin = iMotor_EnablePin;
+
+      m_iCalMemoryStart = iCalMemoryStart;
+
+      loadLimitsFromEEPROM();
+
+      configurePort();
+      
+      ForgetStartTime();      
+    }    
+
+
+    void updateSpeed() 
+    {
+      decideSpeedAndDirection(UseSignalFromSyndyne);
+      setMotorSpeed();
+    }
+
+    
+    void setOpenedLimit() {
+      m_iOpenedLimit = readRawActualPosition();
+      saveLimitsToEEPROM();
+    }
+
+
+    void setClosedLimit() {
+      m_iClosedLimit = readRawActualPosition();
+      saveLimitsToEEPROM();
+    }
+
+    bool enterWasPressed() {
+      char c = 0;
+      while (Serial.available() > 0) {
+        c = Serial.read();
+        if (c == 13)
+          return true;
+      }
+
+      return false;
+    }
+
+    
+    void test() {
+      Serial.println("Driving to fully closed position.  Motor should finish quickly.");
+      Serial.println("Press Enter when you're ready to continue.");
+      do {
+        decideSpeedAndDirection(0);
+        setMotorSpeed();
+      } while (!enterWasPressed());
+      
+      Serial.println("Driving to fully opened position.  Motor should finish quickly.");
+      Serial.println("Press Enter when you're ready to continue.");
+      do {
+        decideSpeedAndDirection(100);
+        setMotorSpeed();
+      } while (!enterWasPressed());
+      
+      Serial.println("Driving to fully closed position.  Motor should finish quickly.");
+      Serial.println("Press Enter when you're ready to continue.");
+      do {
+        decideSpeedAndDirection(0);
+        setMotorSpeed();
+      } while (!enterWasPressed());
+      
+      Serial.println("Returning to normal operation.");
+    }
+};
+
+             
+Motor motor1(Motor1_ActualPositionAnalogInputPin,
+             // motor control particulars
+             In1_Motor1DirA,
+             In2_Motor1DirB,
+             En1_Motor1Enable,
+             0x0000);
+
+Motor motor2(Motor2_ActualPositionAnalogInputPin,
+             // motor control particulars
+             In3_Motor2DirA,
+             In4_Motor2DirB,
+             En2_Motor2Enable,
+             0x0010);
 
 void setup()
 {
   Serial.begin(9600);
 
-  pinMode(0, INPUT);  
-  pinMode(1, INPUT);  
-  pinMode(2, INPUT);  
-  pinMode(3, INPUT);  
-  
-  rMotor1.iMotorNum=Motor1;
-  rMotor1.iActualPositionAnalogInputPin=Motor1_ActualPositionAnalogInputPin;
-  rMotor1.iSetPositionAnalogInputPin_TEST=Motor1_SetPositionAnalogInputPin_TEST;
-  rMotor1.iMotor_DirPinA=In1_Motor1DirA;
-  rMotor1.iMotor_DirPinB=In2_Motor1DirB;
-  rMotor1.iMotor_EnablePin=En1_Motor1Enable;
-  rMotor1.iClosedLimit = 640;
-  rMotor1.iOpenedLimit = 840;
-  rMotor1.iStartTime=0;
-  configurePort(&rMotor1);
-  
-  rMotor2.iMotorNum=Motor2;
-  rMotor2.iActualPositionAnalogInputPin=Motor2_ActualPositionAnalogInputPin;
-  rMotor2.iSetPositionAnalogInputPin_TEST=Motor2_SetPositionAnalogInputPin_TEST;
-  rMotor2.iMotor_DirPinA=In3_Motor2DirA;
-  rMotor2.iMotor_DirPinB=In4_Motor2DirB;
-  rMotor2.iMotor_EnablePin=En2_Motor2Enable;
-  rMotor2.iClosedLimit = 773;
-  rMotor2.iOpenedLimit = 888;
-  rMotor2.iStartTime=0;
-  configurePort(&rMotor2);
-
-  //motorAccelerationTestAndStop(&rMotor1);
-
   pinMode(LED_ERROR, OUTPUT);
-
-//  logPositionAndStop();
-  
-//  Serial.println("Seeking limits...");
-//
-//  findLimit(&rMotor1, OpenShutter);
-//  findLimit(&rMotor1, CloseShutter);
-//
-//  findLimit(&rMotor2, OpenShutter);
-//  findLimit(&rMotor2, CloseShutter);
-//  
-//  Serial.println("Limits found!");
-//  
-//  Serial.print("Motor 1 limit:  ");
-//  Serial.print(rMotor1.iMemory_FullClosedPosition);
-//  Serial.print(" - ");
-//  Serial.println(rMotor1.iMemory_FullOpenPosition);
-//
-//  Serial.print("Motor 2 limit:  ");
-//  Serial.print(rMotor2.iMemory_FullClosedPosition);
-//  Serial.print(" - ");
-//  Serial.println(rMotor2.iMemory_FullOpenPosition);
 }
 
 
-//int actualPositionPct(TMotor* prMotor) {
-//  int iMin = prMotor->iMemory_FullClosedPosition;
-//  int iMax = prMotor->iMemory_FullOpenPosition;
-//  int iDiff = iMax - iMin;
-//
-//  if (iDiff==0)
-//    return 0;
-//  
-//  int iPosPct = 100 * (readActualPosition(prMotor) - iMin) / iDiff;
-//}
+void handleCommands() {
+  while (Serial.available() > 0) {
+    // get incoming byte:
+    char c = Serial.read();
 
-void setMotorStarted(TMotor* prMotor, bool* pbError) {
-  int iFlash;
-
-  if (!prMotor->iStartTime)
-    prMotor->iStartTime=millis();
-
-  *pbError=(millis() - prMotor->iStartTime > icMotorTimeoutMS);
-  if (*pbError) {
-    iFlash = millis() / 500;
-
-    if (iFlash % 2==1) 
-      digitalWrite(LED_ERROR, HIGH);   // turn the LED on
-      else
-      digitalWrite(LED_ERROR, LOW);    // turn the LED off
-  }
-
-}
-
-
-void setMotorStopped(TMotor* prMotor) {
-  prMotor->iStartTime=0;
-
-  digitalWrite(LED_ERROR, LOW);    // turn the LED off by making the voltage LOW
-}
-
-
-void decideDriveSpeedAndDirection(TMotor* prMotor, int iDiffPct, TMotorDir* peMotorDir_out, byte* piSpeed_out) {
-  bool bError;
-  
-  // big change?  use high speed.
-  if (abs(iDiffPct) > 25) {
-    prMotor->bMotor_HighSpeedWasUsed = true;
-    setMotorStarted(prMotor, &bError);
-    if (bError)
-      *piSpeed_out=0;
-      else
-      *piSpeed_out=180;
-  } else  
-    // within one step?  ok, stop
-    if (abs(iDiffPct) <= dcThresholdPct) {
-        prMotor->bMotor_HighSpeedWasUsed = false;
-        setMotorStopped(prMotor);
-        *piSpeed_out=0;
-    } else {
-      setMotorStarted(prMotor, &bError);
-      if (bError)
-        *piSpeed_out=0;
+    // discard unused char
+    if (c==10)
+      continue;
+      
+    if (c==13) { 
+      if (sCommandBuffer.equalsIgnoreCase("Room1SetOpenedLimit"))
+        motor1.setOpenedLimit();
         else
-        if (prMotor->bMotor_HighSpeedWasUsed) 
-          *piSpeed_out=100;
-          else 
-          *piSpeed_out=190;
-    }
-    
-  // decide direction
-  *peMotorDir_out = iDiffPct > 0 ? OpenShutter : CloseShutter;
-  if (*piSpeed_out==0)
-    *peMotorDir_out=Stop;    
-}
-
-
-//void driveToPosition(TMotor* prMotor, int iSetPos) {
-//  TMotorDir eMotorDir;
-//  byte iSpeed;
-//
-//  do {
-//    do {
-//      int iDiff = iSetPos - readActualPosition(prMotor);
-//      
-//      decideDriveSpeedAndDirection(iDiff, &eMotorDir, &iSpeed);
-//  
-//      setMotorSpeed(prMotor, eMotorDir, iSpeed);
-//          
-//      delay(1);
-//    } while ((iSpeed!=0) && (eMotorDir!=Stop));
-//    
-//    stopMotor(prMotor);
-//  
-//    Serial.print("initial stop ");
-//    Serial.println(readActualPosition(prMotor));
-//  
-//    delay(100);
-//  } while (abs(readActualPositionPct(prMotor) - iSetPos) > icThreshold);
-//
-//  Serial.println("STOPPED");
-//}
-//
-//
-//void runTests() {
-//  while (1) {
-//    driveToPosition(&rMotor1, 400);
-//
-//    delay(2000);
-//
-//    driveToPosition(&rMotor1, 390);
-//
-//    delay(2000);
-//
-//    driveToPosition(&rMotor1, 350);
-//
-//    delay(2000);
-//
-//    driveToPosition(&rMotor1, 250);
-//
-//    delay(2000);
-//
-//    driveToPosition(&rMotor1, 350);
-//
-//    delay(2000);
-//
-//    driveToPosition(&rMotor1, 390);
-//
-//    delay(5000);
-//  }
-//}
-
-void logPositionNow() {
-//  Serial.print("Shutter 1 position:  ");
-//  int iRawValue = analogRead(rMotor1.iActualPositionAnalogInputPin);
-//  Serial.println(iRawValue);
-
-  Serial.print("Shutter 1 set position:  ");
-  int iRawValue = analogRead(rMotor1.iActualPositionAnalogInputPin);
-  Serial.println(iRawValue);
-}
-
-void logPositions() {
-  while (1) {
-    logPositionNow();
-    delay(1000);
-  }
+      if (sCommandBuffer.equalsIgnoreCase("Room1SetClosedLimit"))
+        motor1.setClosedLimit();
+        else
+      if (sCommandBuffer.equalsIgnoreCase("Room1Test"))
+        motor1.test();
+        else
+      if (sCommandBuffer.equalsIgnoreCase("Room2SetOpenedLimit"))
+        motor2.setOpenedLimit();
+        else
+      if (sCommandBuffer.equalsIgnoreCase("Room2SetClosedLimit"))
+        motor2.setClosedLimit();
+        else
+      if (sCommandBuffer.equalsIgnoreCase("Room2Test"))
+        motor2.test();
+        else
+        Serial.println("Unrecognized command!");
+        
+      sCommandBuffer="";
+    } else
+      sCommandBuffer += c;
+  }  
 }
 
 void loop()
@@ -459,20 +379,12 @@ void loop()
 //  logPositions(); 
 //  runTests();
 
-  while (1) {
-    TMotorDir eMotorDir;
-    byte iSpeed;
+  sCommandBuffer = "";
   
-    int iDiffPct = readSetPositionPct(&rMotor1) - readActualPositionPct(&rMotor1);
-    decideDriveSpeedAndDirection(&rMotor1, iDiffPct, &eMotorDir, &iSpeed);
-    setMotorSpeed(&rMotor1, eMotorDir, iSpeed);
-
-    logPositionNow();
+  while (1) {
+    motor1.updateSpeed();
+    motor2.updateSpeed();
     
-//    iDiffPct = readSetPositionPct(&rMotor2) - readActualPositionPct(&rMotor2);
-//    decideDriveSpeedAndDirection(&rMotor2, iDiffPct, &eMotorDir, &iSpeed);
-//    setMotorSpeed(&rMotor2, eMotorDir, iSpeed);
-        
     delay(1);
   }
 }
