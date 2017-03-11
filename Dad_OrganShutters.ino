@@ -1,18 +1,18 @@
 #include <EEPROM.h>
 
 // digital outputs
-const int In1_Motor1DirA=5;
-const int In2_Motor1DirB=6;
-const int In3_Motor2DirA=7;
-const int In4_Motor2DirB=8;
-const int En1_Motor1Enable=9;
-const int En2_Motor2Enable=10;
+const int In1_Motor2DirA=5;
+const int In2_Motor2DirB=6;
+const int In3_Motor1DirA=7;
+const int In4_Motor1DirB=8;
+const int En1_Motor2Enable=9;
+const int En2_Motor1Enable=10;
 
 const int LED_ERROR=LED_BUILTIN;
 
 // analog inputs
-const int Motor1_ActualPositionAnalogInputPin=A0;
-const int Motor2_ActualPositionAnalogInputPin=A1;
+const int Motor1_ActualPositionAnalogInputPin=A1;
+const int Motor2_ActualPositionAnalogInputPin=A0;
 
 
 enum TMotorDir {CloseShutter, Stop, OpenShutter};
@@ -36,10 +36,10 @@ class Motor
     byte m_iMotor_EnablePin;
     boolean m_bMotor_HighSpeedWasUsed;
 
-    int m_iCalMemoryStart;
+    unsigned int m_iCalMemoryStart;
     
-    int m_iClosedLimit;
-    int m_iOpenedLimit;
+    unsigned int m_iClosedLimit;
+    unsigned int m_iOpenedLimit;
 
     TMotorDir m_eChosenMotorDir;
     byte m_iChosenSpeed;
@@ -110,21 +110,23 @@ class Motor
 //    }
 
     void loadLimitsFromEEPROM() {
-      m_iClosedLimit = eeprom_read_word(m_iCalMemoryStart);
-      m_iOpenedLimit = eeprom_read_word(m_iCalMemoryStart + sizeof(int));
+      m_iClosedLimit = eeprom_read_word((unsigned int*) m_iCalMemoryStart);
+      unsigned int iMemPos = m_iCalMemoryStart + sizeof(int);
+      m_iOpenedLimit = eeprom_read_word((unsigned int*) iMemPos);
     }
 
 
     void saveLimitsToEEPROM() {
-      eeprom_write_word(m_iCalMemoryStart, m_iClosedLimit);
-      eeprom_write_word(m_iCalMemoryStart + sizeof(int), m_iOpenedLimit);
+      eeprom_write_word((unsigned int*) m_iCalMemoryStart, m_iClosedLimit);
+      unsigned int iMemPos = m_iCalMemoryStart + sizeof(int);
+      eeprom_write_word((unsigned int*) iMemPos, m_iOpenedLimit);
 
       // clears any timeout
       m_iStartTime=millis();
     }
 
 
-    void ForgetStartTime()
+    void forgetStartTime()
     {
       m_iStartTime = 0;
       m_bMotor_HighSpeedWasUsed = false;
@@ -216,8 +218,11 @@ class Motor
       // if error, choose speed of 0 and flash the error LED
 
       int iFlashTmp;
-    
-      bool bError=((millis() - m_iStartTime > icMotorTimeoutMS) || (readRawActualPosition()==MaxADCValue));
+
+      bool bTimeout = (m_iStartTime>0) && (millis() - m_iStartTime > icMotorTimeoutMS);
+      bool bBadFeedback = (readRawActualPosition()==MaxADCValue) || (readRawActualPosition()==0);
+      
+      bool bError=bTimeout || bBadFeedback;
       if (bError) {
         iFlashTmp = millis() / 500;
     
@@ -241,7 +246,7 @@ class Motor
           byte iMotor_DirPinA,
           byte iMotor_DirPinB,
           byte iMotor_EnablePin,
-          int iCalMemoryStart) {
+          unsigned int iCalMemoryStart) {
       m_iActualPositionAnalogInputPin = iActualPositionAnalogInputPin;
       
       // motor control particulars
@@ -255,8 +260,9 @@ class Motor
 
       configurePort();
       
-      ForgetStartTime();      
-    }    
+      forgetStartTime();      
+      reset();
+}    
 
 
     void updateSpeed() 
@@ -265,15 +271,44 @@ class Motor
       setMotorSpeed();
     }
 
-    
+
+    void showInfo()
+    {
+      Serial.println("ROOM INFO");
+      Serial.println("=========");
+      Serial.print("Raw: 'Open' limit is ");
+      Serial.println(m_iOpenedLimit);
+      Serial.print("Raw: 'Close' limit is ");
+      Serial.println(m_iClosedLimit);
+
+      Serial.print("Raw: Current set position is ");
+      Serial.println(readSetPosition());
+      Serial.print("Raw: Current position is ");
+      Serial.println(readRawActualPosition());
+
+      Serial.print("Pct: Current set position is ");
+      Serial.println(readSetPositionPct());
+      Serial.print("Pct: Current position is ");
+      Serial.println(readActualPositionPct());
+    }
+
+
+    void reset() {
+      m_iStartTime = 0; 
+    }
+       
     void setOpenedLimit() {
       m_iOpenedLimit = readRawActualPosition();
+      Serial.print("OK; new 'open' limit is ");
+      Serial.println(m_iOpenedLimit);
       saveLimitsToEEPROM();
     }
 
 
     void setClosedLimit() {
       m_iClosedLimit = readRawActualPosition();
+      Serial.print("OK; new 'close' limit is ");
+      Serial.println(m_iClosedLimit);
       saveLimitsToEEPROM();
     }
 
@@ -318,16 +353,16 @@ class Motor
              
 Motor motor1(Motor1_ActualPositionAnalogInputPin,
              // motor control particulars
-             In1_Motor1DirA,
-             In2_Motor1DirB,
-             En1_Motor1Enable,
+             In3_Motor1DirA,
+             In4_Motor1DirB,
+             En2_Motor1Enable,
              0x0000);
 
 Motor motor2(Motor2_ActualPositionAnalogInputPin,
              // motor control particulars
-             In3_Motor2DirA,
-             In4_Motor2DirB,
-             En2_Motor2Enable,
+             In1_Motor2DirA,
+             In2_Motor2DirB,
+             En1_Motor2Enable,
              0x0010);
 
 void setup()
@@ -357,17 +392,30 @@ void handleCommands() {
       if (sCommandBuffer.equalsIgnoreCase("Room1Test"))
         motor1.test();
         else
-      if (sCommandBuffer.equalsIgnoreCase("Room2SetOpenedLimit"))
+      if (sCommandBuffer.equalsIgnoreCase("Room1ShowInfo"))
+        motor1.showInfo();
+        else
+      if (sCommandBuffer.equalsIgnoreCase("SetOpenedLimit"))
         motor2.setOpenedLimit();
         else
-      if (sCommandBuffer.equalsIgnoreCase("Room2SetClosedLimit"))
+      if (sCommandBuffer.equalsIgnoreCase("SetClosedLimit"))
         motor2.setClosedLimit();
         else
-      if (sCommandBuffer.equalsIgnoreCase("Room2Test"))
+      if (sCommandBuffer.equalsIgnoreCase("Test"))
         motor2.test();
         else
+      if (sCommandBuffer.equalsIgnoreCase("ShowInfo"))
+        motor2.showInfo();
+        else
+      if (sCommandBuffer.equalsIgnoreCase("Reset")) {
+        motor1.reset();
+        motor2.reset();
+        Serial.println("OK");
+      } else
         Serial.println("Unrecognized command!");
         
+      Serial.println();
+      
       sCommandBuffer="";
     } else
       sCommandBuffer += c;
@@ -384,6 +432,8 @@ void loop()
   while (1) {
     motor1.updateSpeed();
     motor2.updateSpeed();
+
+    handleCommands();
     
     delay(1);
   }
