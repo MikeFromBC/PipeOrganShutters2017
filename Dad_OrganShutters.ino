@@ -8,7 +8,7 @@ const int En1_MotorEnable=10;
 const int LED_ERROR=LED_BUILTIN;
 
 // analog inputs
-const int ActualPositionAnalogInputPin=A0;
+const int ActualShutterPositionAnalogInputPin=A0;
 
 
 enum TMotorDir {CloseShutter, Stop, OpenShutter};
@@ -19,7 +19,7 @@ class Motor
 {
   private:
     const int icMotorTimeoutMS = 30000;
-    const int icShutterSteps=16;
+    const int icShutterSteps=16;  // this is now an arbitrary value
     const int dcDiffThresholdPct=100 / icShutterSteps;
     const int MaxADCValue = 1023;
     const int UseSignalFromSyndyne = -1;
@@ -30,52 +30,52 @@ class Motor
     
     boolean m_bMotor_HighSpeedWasUsed;
    
-    int m_iInClosedLimit;
-    int m_iInOpenedLimit;
+    int m_iPedalClosedLimit;
+    int m_iPedalOpenedLimit;
 
-    unsigned int m_iClosedLimit;
-    unsigned int m_iOpenedLimit;
+    int m_iShutterClosedLimit;
+    int m_iShutterOpenedLimit;
 
     TMotorDir m_eChosenMotorDir;
     byte m_iChosenSpeed;
   
-    unsigned long m_iStartTime;
+    unsigned long m_iMotorStartTime;
 
-    int readRawSetPosition() {
-      return PIND >> 1;
+    int readRawPedalPosition() {
+      return PIND & 0x7f;
     }
 
       
-    int readSetPositionPct() {
-      int iRawValue = readRawSetPosition();
+    int readPedalPositionPct() {
+      int iRawValue = readRawPedalPosition();
 
-      if (iRawValue < m_iInClosedLimit)
-        iRawValue = m_iInClosedLimit;
+      if (iRawValue < m_iPedalClosedLimit)
+        iRawValue = m_iPedalClosedLimit;
         
-      if (iRawValue > m_iInOpenedLimit)
-        iRawValue = m_iInOpenedLimit;
+      if (iRawValue > m_iPedalOpenedLimit)
+        iRawValue = m_iPedalOpenedLimit;
         
-      int iRangeSize = m_iInOpenedLimit - m_iInClosedLimit;
+      int iRangeSize = m_iPedalOpenedLimit - m_iPedalClosedLimit;
       
-      return round(100 * (iRawValue - m_iInClosedLimit) / iRangeSize);
+      return round(100 * (iRawValue - m_iPedalClosedLimit) / iRangeSize);
     }
 
 
-    int readRawActualPosition() {
-      return analogRead(ActualPositionAnalogInputPin);
+    int readRawActualShutterPosition() {
+      return analogRead(ActualShutterPositionAnalogInputPin);
     }
     
     
-    int readActualPositionPct() {
-      int iRawValue = readRawActualPosition();
+    int readActualShutterPositionPct() {
+      int iRawValue = readRawActualShutterPosition();
 
-      if (iRawValue < m_iClosedLimit)
-        iRawValue = m_iClosedLimit;
+      if (iRawValue < m_iShutterClosedLimit)
+        iRawValue = m_iShutterClosedLimit;
         
-      if (iRawValue > m_iOpenedLimit)
-        iRawValue = m_iOpenedLimit;
+      if (iRawValue > m_iShutterOpenedLimit)
+        iRawValue = m_iShutterOpenedLimit;
         
-      int iRangeSize = m_iOpenedLimit - m_iClosedLimit;
+      int iRangeSize = m_iShutterOpenedLimit - m_iShutterClosedLimit;
 
 // clutters other debugging stuff
 //      if (m_bDebug) {
@@ -87,42 +87,42 @@ class Motor
 //        Serial.println(round(100 * (iRawValue - m_iClosedLimit) / iRangeSize));
 //      }
       
-      return round(100 * (iRawValue - m_iClosedLimit) / iRangeSize);
+      return round(100 * (iRawValue - m_iShutterClosedLimit) / iRangeSize);
     }
 
 
     void loadLimitsFromEEPROM() {
       unsigned int iMemPos = CalMemoryStart;
-      m_iClosedLimit = eeprom_read_word((unsigned int*) iMemPos);
+      m_iShutterClosedLimit = eeprom_read_word((unsigned int*) iMemPos);
       iMemPos += sizeof(int);
-      m_iOpenedLimit = eeprom_read_word((unsigned int*) iMemPos);
+      m_iShutterOpenedLimit = eeprom_read_word((unsigned int*) iMemPos);
     
       iMemPos += sizeof(int) ;
-      m_iInClosedLimit = eeprom_read_word((unsigned int*) iMemPos);
+      m_iPedalClosedLimit = eeprom_read_word((unsigned int*) iMemPos);
       iMemPos += sizeof(int);
-      m_iOpenedLimit = eeprom_read_word((unsigned int*) iMemPos);
+      m_iPedalOpenedLimit = eeprom_read_word((unsigned int*) iMemPos);
     }
 
 
     void saveLimitsToEEPROM() {
       unsigned int iMemPos = CalMemoryStart;
-      eeprom_write_word((unsigned int*) iMemPos, m_iClosedLimit);
+      eeprom_write_word((unsigned int*) iMemPos, m_iShutterClosedLimit);
       iMemPos += sizeof(int);
-      eeprom_write_word((unsigned int*) iMemPos, m_iOpenedLimit);
+      eeprom_write_word((unsigned int*) iMemPos, m_iShutterOpenedLimit);
       
       iMemPos += sizeof(int);
-      eeprom_write_word((unsigned int*) iMemPos, m_iInClosedLimit);
+      eeprom_write_word((unsigned int*) iMemPos, m_iPedalClosedLimit);
       iMemPos += sizeof(int);
-      eeprom_write_word((unsigned int*) iMemPos, m_iInOpenedLimit);
+      eeprom_write_word((unsigned int*) iMemPos, m_iPedalOpenedLimit);
 
       // clears any timeout
-      m_iStartTime=millis();
+      m_iMotorStartTime=millis();
     }
 
 
     void forgetStartTime()
     {
-      m_iStartTime = 0;
+      m_iMotorStartTime = 0;
       m_bMotor_HighSpeedWasUsed = false;
     }
 
@@ -140,7 +140,7 @@ class Motor
 
     void configurePort() 
     {
-      pinMode(ActualPositionAnalogInputPin, INPUT);  
+      pinMode(ActualShutterPositionAnalogInputPin, INPUT);  
       
       pinMode(In1_MotorDirA, OUTPUT);
       pinMode(In2_MotorDirB, OUTPUT);  
@@ -185,11 +185,11 @@ class Motor
       int iSetPct;
       
       if (iForcedSetPct == UseSignalFromSyndyne)
-        iSetPct = readSetPositionPct();
+        iSetPct = readPedalPositionPct();
         else
         iSetPct = iForcedSetPct;
       
-      int iDiffPct = iSetPct - readActualPositionPct();
+      int iDiffPct = iSetPct - readActualShutterPositionPct();
 
       // big change?  use high speed.
       if (abs(iDiffPct) > 25) {
@@ -209,10 +209,10 @@ class Motor
         }
 
       // prepare for tracking motor start time
-      if ((m_iChosenSpeed) && (!m_iStartTime))
-          m_iStartTime=millis();
+      if ((m_iChosenSpeed) && (!m_iMotorStartTime))
+          m_iMotorStartTime=millis();
           else
-          m_iStartTime=0;
+          m_iMotorStartTime=0;
         
       // decide direction
       m_eChosenMotorDir = iDiffPct > 0 ? OpenShutter : CloseShutter;
@@ -222,8 +222,8 @@ class Motor
 
       int iFlashTmp;
 
-      bool bTimeout = (m_iStartTime>0) && (millis() - m_iStartTime > icMotorTimeoutMS);
-      bool bBadFeedback = (readRawActualPosition()==MaxADCValue) || (readRawActualPosition()==0);
+      bool bTimeout = (m_iMotorStartTime>0) && (millis() - m_iMotorStartTime > icMotorTimeoutMS);
+      bool bBadFeedback = (readRawActualShutterPosition()==MaxADCValue) || (readRawActualShutterPosition()==0);
       
       bool bError=bTimeout || bBadFeedback;
       if (bError) {
@@ -249,9 +249,9 @@ class Motor
         Serial.print("Set %:  ");
         Serial.print(iSetPct); 
         Serial.print("   Actual:  ");
-        Serial.print(readRawActualPosition());
+        Serial.print(readRawActualShutterPosition());
         Serial.print("   Actual %:  ");
-        Serial.print(readActualPositionPct());
+        Serial.print(readActualShutterPositionPct());
         Serial.print("   Diff %:  ");
         Serial.print(iDiffPct);
         Serial.print("   Selected speed:  ");
@@ -302,24 +302,24 @@ class Motor
         Serial.println("Status: DISABLED");
       
       Serial.print("Raw: IN 'Open' limit is ");
-      Serial.println(m_iInOpenedLimit);
+      Serial.println(m_iPedalOpenedLimit);
       Serial.print("Raw: IN 'Close' limit is ");
-      Serial.println(m_iInClosedLimit);
+      Serial.println(m_iPedalClosedLimit);
 
       Serial.print("Raw: 'Open' limit is ");
-      Serial.println(m_iOpenedLimit);
+      Serial.println(m_iShutterOpenedLimit);
       Serial.print("Raw: 'Close' limit is ");
-      Serial.println(m_iClosedLimit);
+      Serial.println(m_iShutterClosedLimit);
 
       Serial.print("Raw: Current set position is ");
-      Serial.println(readRawSetPosition());
+      Serial.println(readRawPedalPosition());
       Serial.print("Raw: Current position is ");
-      Serial.println(readRawActualPosition());
+      Serial.println(readRawActualShutterPosition());
 
       Serial.print("Pct: Current set position is ");
-      Serial.println(readSetPositionPct());
+      Serial.println(readPedalPositionPct());
       Serial.print("Pct: Current position is ");
-      Serial.println(readActualPositionPct());
+      Serial.println(readActualShutterPositionPct());
     }
 
 
@@ -338,37 +338,37 @@ class Motor
     
     
     void resetError() {
-      m_iStartTime = 0; 
+      m_iMotorStartTime = 0; 
     }
        
-    void setOpenedLimit() {
-      m_iOpenedLimit = readRawActualPosition();
+    void setShutterOpenedLimit() {
+      m_iShutterOpenedLimit = readRawActualShutterPosition();
       Serial.print("OK; new 'open' limit is ");
-      Serial.println(m_iOpenedLimit);
+      Serial.println(m_iShutterOpenedLimit);
       saveLimitsToEEPROM();
     }
 
 
-    void setClosedLimit() {
-      m_iClosedLimit = readRawActualPosition();
+    void setShutterClosedLimit() {
+      m_iShutterClosedLimit = readRawActualShutterPosition();
       Serial.print("OK; new 'close' limit is ");
-      Serial.println(m_iClosedLimit);
+      Serial.println(m_iShutterClosedLimit);
       saveLimitsToEEPROM();
     }
 
 
-    void setInOpenedLimit() {
-      m_iInOpenedLimit = readRawSetPosition();
+    void setPedalOpenedLimit() {
+      m_iPedalOpenedLimit = readRawPedalPosition();
       Serial.print("OK; new IN 'open' limit is ");
-      Serial.println(m_iInOpenedLimit);
+      Serial.println(m_iPedalOpenedLimit);
       saveLimitsToEEPROM();
     }
 
 
-    void setInClosedLimit() {
-      m_iInClosedLimit = readRawSetPosition();
+    void setPedalClosedLimit() {
+      m_iPedalClosedLimit = readRawPedalPosition();
       Serial.print("OK; new IN 'close' limit is ");
-      Serial.println(m_iInClosedLimit);
+      Serial.println(m_iPedalClosedLimit);
       saveLimitsToEEPROM();
     }
 
@@ -435,16 +435,16 @@ void handleCommands() {
       
     if (c==13) { 
       if (sCommandBuffer.equalsIgnoreCase("SetPedalFullyOpenedPosition"))
-        motor.setInOpenedLimit();
+        motor.setPedalOpenedLimit();
         else
       if (sCommandBuffer.equalsIgnoreCase("SetPedalFullyClosedPosition"))
-        motor.setInClosedLimit();
+        motor.setPedalClosedLimit();
         else
       if (sCommandBuffer.equalsIgnoreCase("SetShutterFullyOpenedPosition"))
-        motor.setOpenedLimit();
+        motor.setShutterOpenedLimit();
         else
       if (sCommandBuffer.equalsIgnoreCase("SetShutterFullyClosedPosition"))
-        motor.setClosedLimit();
+        motor.setShutterClosedLimit();
         else
       if (sCommandBuffer.equalsIgnoreCase("Test"))
         motor.test();
