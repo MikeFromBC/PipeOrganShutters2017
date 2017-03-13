@@ -42,7 +42,8 @@ class Motor
     unsigned long m_iMotorStartTime;
 
     int readRawPedalPosition() {
-      return PIND & 0x7f;
+      const int icBitMask = 0x7f;
+      return (PIND ^ icBitMask) & icBitMask;
     }
 
       
