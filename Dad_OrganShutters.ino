@@ -19,7 +19,7 @@ class Motor
 {
   private:
     const int icMotorTimeoutMS = 30000;
-    const int icShutterSteps=16;  // this is now an arbitrary value
+    const int icShutterSteps=32;  // this is now an arbitrary value
     const int dcDiffThresholdPct=100 / icShutterSteps;
     const int MaxADCValue = 1023;
     const int UseSignalFromSyndyne = -1;
@@ -42,7 +42,7 @@ class Motor
     unsigned long m_iMotorStartTime;
 
     int readRawPedalPosition() {
-      const int icBitMask = 0x7f;
+      const int icBitMask = 0x7f - 3;
       return (PIND ^ icBitMask) & icBitMask;
     }
 
@@ -192,17 +192,31 @@ class Motor
       
       int iDiffPct = iSetPct - readActualShutterPositionPct();
 
+      // decide direction
+      m_eChosenMotorDir = iDiffPct > 0 ? OpenShutter : CloseShutter;
+
       // big change?  use high speed.
       if (abs(iDiffPct) > 25) {
         m_bMotor_HighSpeedWasUsed = true;
-        m_iChosenSpeed = 180;
+        
+        if (m_eChosenMotorDir==CloseShutter)
+          m_iChosenSpeed = 130;
+          else
+          m_iChosenSpeed = 180;
       } else  
         // just a short distance away?  drive slowly (or slow down)
         if (abs(iDiffPct) > dcDiffThresholdPct) {
-          if (m_bMotor_HighSpeedWasUsed) 
-            m_iChosenSpeed = 150;
-            else 
-            m_iChosenSpeed = 220;
+          if (m_bMotor_HighSpeedWasUsed) {
+            if (m_eChosenMotorDir==CloseShutter)
+              m_iChosenSpeed = 100;
+              else
+              m_iChosenSpeed = 120;
+          } else {
+              if (m_eChosenMotorDir==CloseShutter)
+                m_iChosenSpeed = 170;
+                else
+                m_iChosenSpeed = 190;
+            }  
         } else {
             // stop!
             m_bMotor_HighSpeedWasUsed = false;
@@ -215,9 +229,6 @@ class Motor
           else
           m_iMotorStartTime=0;
         
-      // decide direction
-      m_eChosenMotorDir = iDiffPct > 0 ? OpenShutter : CloseShutter;
-
       // check for error conditions
       // if error, choose speed of 0 and flash the error LED
 
@@ -247,13 +258,15 @@ class Motor
         if (bBadFeedback) Serial.println("BAD FEEDBACK");
         
       if (m_bDebug) {
-        Serial.print("Set %:  ");
+        Serial.print("Pedal:  ");
+        Serial.print(readRawPedalPosition());
+        Serial.print(" (%");
         Serial.print(iSetPct); 
-        Serial.print("   Actual:  ");
+        Serial.print(")   Shutter:  ");
         Serial.print(readRawActualShutterPosition());
-        Serial.print("   Actual %:  ");
+        Serial.print(" (%");
         Serial.print(readActualShutterPositionPct());
-        Serial.print("   Diff %:  ");
+        Serial.print(")   Diff %:  ");
         Serial.print(iDiffPct);
         Serial.print("   Selected speed:  ");
         Serial.print(m_iChosenSpeed);
@@ -483,13 +496,21 @@ void handleCommands() {
 
 void loop()
 { 
+//  while (1) {
+//    delay(200);
+//    digitalWrite(LED_ERROR, LOW);  
+//    delay(200);
+//    digitalWrite(LED_ERROR, HIGH);  
+//    Serial.println("ok");
+//  }
+  
   while (1) {
     motor.updateSpeed();
 
     handleCommands();
 
     // too long-->overshoot
-    delay(50);
+    delay(10);
   }
 }
 
