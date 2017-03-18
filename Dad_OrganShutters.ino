@@ -195,6 +195,8 @@ class Motor
       // decide direction
       m_eChosenMotorDir = iDiffPct > 0 ? OpenShutter : CloseShutter;
 
+      // shutter speed management affected by this; see also here
+
       // big change?  use high speed.
       if (abs(iDiffPct) > 25) {
         m_bMotor_HighSpeedWasUsed = true;
@@ -315,24 +317,22 @@ class Motor
         else
         Serial.println("Status: DISABLED");
       
-      Serial.print("Raw: IN 'Open' limit is ");
+      Serial.print("Raw: Pedal 'Open' limit is ");
       Serial.println(m_iPedalOpenedLimit);
-      Serial.print("Raw: IN 'Close' limit is ");
+      Serial.print("Raw: Pedal 'Close' limit is ");
       Serial.println(m_iPedalClosedLimit);
-
-      Serial.print("Raw: 'Open' limit is ");
-      Serial.println(m_iShutterOpenedLimit);
-      Serial.print("Raw: 'Close' limit is ");
-      Serial.println(m_iShutterClosedLimit);
-
-      Serial.print("Raw: Current set position is ");
+      Serial.print("Raw: Pedal position is ");
       Serial.println(readRawPedalPosition());
-      Serial.print("Raw: Current position is ");
-      Serial.println(readRawActualShutterPosition());
-
-      Serial.print("Pct: Current set position is ");
+      Serial.print("Pct: Pedal position % is ");
       Serial.println(readPedalPositionPct());
-      Serial.print("Pct: Current position is ");
+
+      Serial.print("Raw: Shutter 'Open' limit is ");
+      Serial.println(m_iShutterOpenedLimit);
+      Serial.print("Raw: Shutter 'Close' limit is ");
+      Serial.println(m_iShutterClosedLimit);
+      Serial.print("Raw: Shutter position is ");
+      Serial.println(readRawActualShutterPosition());
+      Serial.print("Pct: Shutter position % is ");
       Serial.println(readActualShutterPositionPct());
     }
 
@@ -357,7 +357,7 @@ class Motor
        
     void setShutterOpenedLimit() {
       m_iShutterOpenedLimit = readRawActualShutterPosition();
-      Serial.print("OK; new 'open' limit is ");
+      Serial.print("OK; new shutter 'open' limit is ");
       Serial.println(m_iShutterOpenedLimit);
       saveLimitsToEEPROM();
     }
@@ -365,7 +365,7 @@ class Motor
 
     void setShutterClosedLimit() {
       m_iShutterClosedLimit = readRawActualShutterPosition();
-      Serial.print("OK; new 'close' limit is ");
+      Serial.print("OK; new shutter 'close' limit is ");
       Serial.println(m_iShutterClosedLimit);
       saveLimitsToEEPROM();
     }
@@ -373,7 +373,7 @@ class Motor
 
     void setPedalOpenedLimit() {
       m_iPedalOpenedLimit = readRawPedalPosition();
-      Serial.print("OK; new IN 'open' limit is ");
+      Serial.print("OK; new pedal 'open' limit is ");
       Serial.println(m_iPedalOpenedLimit);
       saveLimitsToEEPROM();
     }
@@ -381,7 +381,7 @@ class Motor
 
     void setPedalClosedLimit() {
       m_iPedalClosedLimit = readRawPedalPosition();
-      Serial.print("OK; new IN 'close' limit is ");
+      Serial.print("OK; new pedal 'close' limit is ");
       Serial.println(m_iPedalClosedLimit);
       saveLimitsToEEPROM();
     }
@@ -448,6 +448,8 @@ void handleCommands() {
       continue;
       
     if (c==13) { 
+      Serial.println("Executing command:  " + sCommandBuffer);
+      
       if (sCommandBuffer.equalsIgnoreCase("SetPedalFullyOpenedPosition"))
         motor.setPedalOpenedLimit();
         else
@@ -508,7 +510,8 @@ void loop()
     motor.updateSpeed();
 
     handleCommands();
-
+    
+    // shutter speed management affected by this; see also here
     // too long-->overshoot
     delay(10);
   }
