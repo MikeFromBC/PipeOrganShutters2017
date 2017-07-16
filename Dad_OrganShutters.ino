@@ -42,6 +42,7 @@ class Motor
     unsigned long m_iMotorStartTime;
 
     int readRawPedalPosition() {
+      // bottom two bits conflict with use of serial port so mask them off
       const int icBitMask = 0x7f - 3;
       return (PIND ^ icBitMask) & icBitMask;
     }
