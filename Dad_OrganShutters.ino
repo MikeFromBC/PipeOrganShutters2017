@@ -10,15 +10,13 @@ class Motor
 {
   private:
     const int icMotorTimeoutMS = 30000;
-    const int icShutterSteps = 64; // this is now an arbitrary value
-    const int dcDiffThresholdPct = 100 / icShutterSteps;
+    const int icShutterSteps_UNUSED = 64; // this is now an arbitrary value
+    const int dcDiffThresholdPct = 2;  //100 / icShutterSteps;
     const int MaxADCValue = 1023;
     const int UseSignalFromSyndyne = -1;
 
     bool m_bDebug;
     bool m_bEnabled;
-
-    boolean m_bMotor_HighSpeedWasUsed;
 
     int m_iCalMemoryStart;
     int m_iMotorEnablePin;
@@ -130,7 +128,6 @@ class Motor
     void forgetStartTime()
     {
       m_iMotorStartTime = 0;
-      m_bMotor_HighSpeedWasUsed = false;
     }
 
     void turnOffErrorLED()
@@ -188,8 +185,6 @@ class Motor
 
     void decideSpeedAndDirection(int iForcedSetPct) {
 
-      const int bcDEBUG_AllowHighSpeed = false;
-      
       // decide speed!
 
       int iSetPct;
@@ -206,33 +201,12 @@ class Motor
 
       // shutter speed management affected by this; see also here
 
-      // big change?  use high speed.
-      if ((abs(iDiffPct) > 25) && (bcDEBUG_AllowHighSpeed)) {
-        m_bMotor_HighSpeedWasUsed = true;
-
-        if (m_eChosenMotorDir == CloseShutter)
-          m_iChosenSpeed = 160;
-        else
-          m_iChosenSpeed = 160;
-      } else
-        // just a short distance away?  drive slowly (or slow down)
-        if (abs(iDiffPct) > dcDiffThresholdPct) {
-          if (m_bMotor_HighSpeedWasUsed) {
-            if (m_eChosenMotorDir == CloseShutter)
-              m_iChosenSpeed = 150;
-            else
-              m_iChosenSpeed = 150;
-          } else {
-            if (m_eChosenMotorDir == CloseShutter)
-                m_iChosenSpeed = 150;
-            else
-                m_iChosenSpeed = 150;
-          }
-        } else {
-          // stop!
-          m_bMotor_HighSpeedWasUsed = false;
-          m_iChosenSpeed = 0;
-        }
+      if (abs(iDiffPct) > dcDiffThresholdPct) 
+        // threshold is 100-140 or so
+        m_iChosenSpeed = 150;
+        else 
+        // stop!
+        m_iChosenSpeed = 0;
 
       // prepare for tracking motor start time
       if ((m_iChosenSpeed) && (!m_iMotorStartTime))
