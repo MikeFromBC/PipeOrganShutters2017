@@ -40,6 +40,9 @@ class Motor
     int readRawPedalPosition() {
       // bottom two bits conflict with use of serial port so mask them off
       const int icBitMask = B11111100;
+
+      //Serial.println(((PIND ^ icBitMask) & icBitMask) >> 2);
+      
       // invert bits & mask off serial port bits
       return ((PIND ^ icBitMask) & icBitMask) >> 2;
     }
@@ -208,22 +211,22 @@ class Motor
         m_bMotor_HighSpeedWasUsed = true;
 
         if (m_eChosenMotorDir == CloseShutter)
-          m_iChosenSpeed = 130;
+          m_iChosenSpeed = 160;
         else
-          m_iChosenSpeed = 180;
+          m_iChosenSpeed = 160;
       } else
         // just a short distance away?  drive slowly (or slow down)
         if (abs(iDiffPct) > dcDiffThresholdPct) {
           if (m_bMotor_HighSpeedWasUsed) {
             if (m_eChosenMotorDir == CloseShutter)
-              m_iChosenSpeed = 100;
+              m_iChosenSpeed = 150;
             else
-              m_iChosenSpeed = 120;
+              m_iChosenSpeed = 150;
           } else {
             if (m_eChosenMotorDir == CloseShutter)
-                m_iChosenSpeed = 170;
+                m_iChosenSpeed = 150;
             else
-                m_iChosenSpeed = 190;
+                m_iChosenSpeed = 150;
           }
         } else {
           // stop!
@@ -418,7 +421,7 @@ class Motor
     }
 
 
-    void test() {
+    void testOpenClose() {
       Serial.println("Driving to fully closed position.  Motor should finish quickly.");
       Serial.println("Press Enter when you're ready to continue.");
       do {
@@ -440,6 +443,99 @@ class Motor
         setMotorSpeed();
       } while (!enterWasPressed());
 
+      Serial.println("Returning to normal operation.");
+    }
+
+
+    void testDrive(int iForcedSetPos) {
+      unsigned long iStartMS = millis();
+      do {
+        decideSpeedAndDirection(iForcedSetPos);
+        setMotorSpeed();
+      } while ((m_eChosenMotorDir!=Stop) || (millis() - iStartMS < 500));
+      
+      Serial.println("DONE!");
+    }
+
+    
+    void testOverallPerformance(TMotorDir eMotorDir) {
+      int iStartPct;
+      int iIncPct;
+      int iLimitPct;
+
+      switch (eMotorDir) {
+        case CloseShutter:
+          iStartPct=100;
+          iIncPct=-5;
+          iLimitPct=0;
+          break;
+        
+        case OpenShutter:
+          iStartPct=0;
+          iIncPct=5;
+          iLimitPct=100;
+          break;
+      }
+
+      while (iStartPct != iLimitPct) {
+        Serial.print("Driving to ");
+        Serial.println(iStartPct);
+        testDrive(iStartPct);
+        iStartPct += iIncPct;
+      }
+      
+      Serial.println("Returning to normal operation.");
+    }
+
+    
+    void testStaticFriction(TMotorDir eMotorDir) {
+      int iStartPct;
+      int iIncPct;
+      int iLimitPct;
+
+      switch (eMotorDir) {
+        case CloseShutter:
+          iStartPct=100;
+          iIncPct=-5;
+          iLimitPct=5;  // don't test past end
+          break;
+        
+        case OpenShutter:
+          iStartPct=0;
+          iIncPct=5;
+          iLimitPct=95;  // don't test past end
+          break;
+      }
+
+      while (iStartPct != iLimitPct) {
+        Serial.print("Driving to ");
+        Serial.println(iStartPct);
+        testDrive(iStartPct);
+  
+        m_eChosenMotorDir = eMotorDir;        
+
+        int iStartPos = readActualShutterPositionPct();
+
+        do {
+          m_iChosenSpeed += 5;
+          setMotorSpeed();
+//          Serial.print("    Trying ");
+//          Serial.println(m_iChosenSpeed);
+          delay(100);
+
+          if (m_iChosenSpeed>245) {
+            Serial.println("ERROR!");
+            break;
+          }
+            
+        } while (abs(iStartPos - readActualShutterPositionPct()) < 5);
+
+        Serial.print("    Threshold ");
+        Serial.println(m_iChosenSpeed);
+        
+        iStartPct += iIncPct;
+      }
+      
       Serial.println("Returning to normal operation.");
     }
 };
@@ -483,8 +579,16 @@ void handleCommands(Motor *motor1, Motor *motor2) {
         currentMotor->setShutterOpenedLimit();
       else if (sCommandBuffer.equalsIgnoreCase("SetShutterFullyClosedPosition"))
         currentMotor->setShutterClosedLimit();
-      else if (sCommandBuffer.equalsIgnoreCase("Test"))
-        currentMotor->test();
+      else if (sCommandBuffer.equalsIgnoreCase("TestOpenClose"))
+        currentMotor->testOpenClose();
+      else if (sCommandBuffer.equalsIgnoreCase("TestOpen"))
+        currentMotor->testOverallPerformance(OpenShutter);
+      else if (sCommandBuffer.equalsIgnoreCase("TestClose"))
+        currentMotor->testOverallPerformance(CloseShutter);
+      else if (sCommandBuffer.equalsIgnoreCase("TestOpenFric"))
+        currentMotor->testStaticFriction(OpenShutter);
+      else if (sCommandBuffer.equalsIgnoreCase("TestCloseFric"))
+        currentMotor->testStaticFriction(CloseShutter);        
       else if (sCommandBuffer.equalsIgnoreCase("ShowInfo"))
         currentMotor->showInfo();
       else if (sCommandBuffer.equalsIgnoreCase("Disable"))
@@ -521,7 +625,7 @@ void loop()
   //    Serial.println("ok");
   //  }
 
-  Motor* motor1 = &Motor(0x0000, 8, 9, 10, 14 /* A0 */);
+  Motor* motor1 = &Motor(0x0000, 9, 8, 10, 14 /* A0 */);
   Motor* motor2 = &Motor(0x0010, 11, 12, 13, 15 /* A1 */);
 
   currentMotor = motor1;
