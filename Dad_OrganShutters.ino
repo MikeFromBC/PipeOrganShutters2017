@@ -11,7 +11,7 @@ class Motor
   private:
     const int icMotorTimeoutMS = 30000;
     const int icShutterSteps_UNUSED = 64; // this is now an arbitrary value
-    const int dcDiffThresholdPct = 2;  //100 / icShutterSteps;
+    const int dcDiffThresholdPct = 3;  //100 / icShutterSteps;
     const int MaxADCValue = 1023;
     const int UseSignalFromSyndyne = -1;
 
