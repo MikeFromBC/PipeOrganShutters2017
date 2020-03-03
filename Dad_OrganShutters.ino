@@ -57,7 +57,12 @@ class Motor
 
       int iRangeSize = m_iPedalOpenedLimit - m_iPedalClosedLimit;
 
-      return round(100 * (iRawValue - m_iPedalClosedLimit) / iRangeSize);
+      int iPct = round(100 * (iRawValue - m_iPedalClosedLimit) / iRangeSize);
+
+      if (iPct < 0) iPct = 0;
+      if (iPct > 100) iPct = 100;
+      
+      return iPct;
     }
 
 
@@ -92,7 +97,12 @@ class Motor
 //              Serial.println(round(100 * (iRawValue - m_iShutterClosedLimit) / iRangeSize));
 //            }
 
-      return round(100 * (iRawValue - m_iShutterClosedLimit) / iRangeSize);
+      int iPct = round(100 * (iRawValue - m_iShutterClosedLimit) / iRangeSize);
+      
+      if (iPct < 0) iPct = 0;
+      if (iPct > 100) iPct = 100;
+      
+      return iPct;
     }
 
 
