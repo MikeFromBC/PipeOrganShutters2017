@@ -537,7 +537,7 @@ void setup()
 }
 
 
-void handleCommands(Motor *motor1, Motor *motor2) {
+void handleCommands(Motor *motor1) {
   while (Serial.available() > 0) {
     // get incoming byte:
     char c = Serial.read();
@@ -552,9 +552,9 @@ void handleCommands(Motor *motor1, Motor *motor2) {
       if (sCommandBuffer.equalsIgnoreCase("Motor1")) {
         currentMotor = motor1;
         Serial.println("Motor 1 selected");
-      } else if (sCommandBuffer.equalsIgnoreCase("Motor2")) {
-        currentMotor = motor2;
-        Serial.println("Motor 2 selected");
+//      } else if (sCommandBuffer.equalsIgnoreCase("Motor2")) {
+//        currentMotor = motor2;
+//        Serial.println("Motor 2 selected");
       } else if (sCommandBuffer.equalsIgnoreCase("SetPedalFullyOpenedPosition"))
         currentMotor->setPedalOpenedLimit();
       else if (sCommandBuffer.equalsIgnoreCase("SetPedalFullyClosedPosition"))
@@ -610,15 +610,15 @@ void loop()
   //  }
 
   Motor* motor1 = &Motor(0x0000, 9, 8, 10, 14 /* A0 */);
-  Motor* motor2 = &Motor(0x0010, 11, 12, 13, 15 /* A1 */);
+  //Motor* motor2 = &Motor(0x0010, 11, 12, 13, 15 /* A1 */);
 
   currentMotor = motor1;
 
   while (1) {
     motor1->updateSpeed();
-    motor2->updateSpeed();
+    //motor2->updateSpeed();
 
-    handleCommands(motor1, motor2);
+    handleCommands(motor1);
 
     // shutter speed management affected by this; see also here
     // too long-->overshoot
