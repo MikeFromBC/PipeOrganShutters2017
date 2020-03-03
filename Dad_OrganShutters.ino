@@ -30,6 +30,8 @@ class Motor
     int m_iShutterClosedLimit;
     int m_iShutterOpenedLimit;
 
+    int m_iPrevDiffPct;
+    
     TMotorDir m_eChosenMotorDir;
     byte m_iChosenSpeed;
 
@@ -211,14 +213,23 @@ class Motor
 
       // shutter speed management affected by this; see also here
 
-      if (abs(iDiffPct) > dcDiffThresholdPct) 
-        // threshold is 100-140 or so
-        m_iChosenSpeed = 150;
-        else 
+      if ((iDiffPct==0) || ((m_iPrevDiffPct<0) != (iDiffPct<0)))
         // stop!
         m_iChosenSpeed = 0;
+        else      
+        if (abs(iDiffPct) > dcDiffThresholdPct) {
+          if (m_eChosenMotorDir == OpenShutter)
+            m_iChosenSpeed = 175;
+            else
+            // threshold is 100-140 or so
+            m_iChosenSpeed = 165;
+        } else 
+          // stop!
+          m_iChosenSpeed = 0;
 
-      // prepare for tracking motor start time
+     m_iPrevDiffPct = iDiffPct;
+
+     // prepare for tracking motor start time
       if ((m_iChosenSpeed) && (!m_iMotorStartTime))
         m_iMotorStartTime = millis();
       else
