@@ -252,7 +252,7 @@ class Motor
       if (bTimeout) Serial.println("TIMEOUT");
       if (bBadFeedback) Serial.println("BAD FEEDBACK");
 
-      if (m_bDebug) {
+      if ((m_bDebug) && (m_iCalMemoryStart==0x0000)) {
         Serial.print("Pedal:  ");
         Serial.print(readRawPedalPosition());
         Serial.print(" (%");
