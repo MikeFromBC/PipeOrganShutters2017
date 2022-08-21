@@ -202,7 +202,7 @@ class Motor
       int iSetPct;
 
       if (iForcedSetPct == UseSignalFromSyndyne)
-        iSetPct = readPedalPositionPct();
+      iSetPct = readPedalPositionPct();
       else
         iSetPct = iForcedSetPct;
 
@@ -221,12 +221,12 @@ class Motor
           switch (m_eChosenMotorDir) {
             case OpenShutter:
               // opening requires more effort than closing (see graphs). 
-            m_iChosenSpeed = 175;
+              m_iChosenSpeed = 175;
               break;
 
             case CloseShutter:
               // closing requires less effort than opening (see graphs).  threshold is 100-140 or so; varies with position.
-            m_iChosenSpeed = 165;
+              m_iChosenSpeed = 165;
           }
         } else 
           // stop!
