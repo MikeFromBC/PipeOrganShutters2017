@@ -269,7 +269,8 @@ class Motor
       if (bBadFeedback) Serial.println("BAD FEEDBACK");
 
       if ((m_bDebug) && (m_iCalMemoryStart==0x0000)) {
-        Serial.print("Pedal:  ");
+        Serial.print(millis());
+        Serial.print(" ms  Pedal:  ");
         Serial.print(readRawPedalPosition());
         Serial.print(" (%");
         Serial.print(iSetPct);
@@ -279,10 +280,22 @@ class Motor
         Serial.print(readActualShutterPositionPct());
         Serial.print(")   Diff %:  ");
         Serial.print(iDiffPct);
-        Serial.print("   Selected speed:  ");
-        Serial.print(m_iChosenSpeed);
-        Serial.print("   Direction:  (0=cl, 1=st, 2=op) ");
-        Serial.println(m_eChosenMotorDir);
+        Serial.print("   Chosen:  ");
+        switch (m_eChosenMotorDir) {
+          OpenShutter:
+            Serial.print("Open ");
+            Serial.println(m_iChosenSpeed);
+            break;
+          
+          CloseShutter:
+            Serial.print("Close ");
+            Serial.println(m_iChosenSpeed);
+            break;
+          
+          Stop:
+            Serial.println("STOPPED");
+            break;         
+        }
       }
 
       if (!m_bEnabled) {
