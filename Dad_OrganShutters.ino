@@ -23,11 +23,11 @@ class Motor
     int m_iMotorDirBPin;
     int m_iActualShutterPositionAnalogInputPin;
 
-    int m_iPedalClosedLimit;
-    int m_iPedalOpenedLimit;
+    int m_iRawPedalClosedLimit;
+    int m_iRawPedalOpenedLimit;
 
-    int m_iShutterClosedLimit;
-    int m_iShutterOpenedLimit;
+    int m_iRawShutterClosedLimit;
+    int m_iRawShutterOpenedLimit;
 
     int m_iPrevDiffPct;
     
@@ -50,15 +50,15 @@ class Motor
     int readPedalPositionPct() {
       int iRawValue = readRawPedalPosition();
 
-      if (iRawValue < m_iPedalClosedLimit)
-        iRawValue = m_iPedalClosedLimit;
+      if (iRawValue < m_iRawPedalClosedLimit)
+        iRawValue = m_iRawPedalClosedLimit;
 
-      if (iRawValue > m_iPedalOpenedLimit)
-        iRawValue = m_iPedalOpenedLimit;
+      if (iRawValue > m_iRawPedalOpenedLimit)
+        iRawValue = m_iRawPedalOpenedLimit;
 
-      int iRangeSize = m_iPedalOpenedLimit - m_iPedalClosedLimit;
+      int iRangeSize = m_iRawPedalOpenedLimit - m_iRawPedalClosedLimit;
 
-      int iPct = round(100 * (iRawValue - m_iPedalClosedLimit) / iRangeSize);
+      int iPct = round(100 * (iRawValue - m_iRawPedalClosedLimit) / iRangeSize);
 
       if (iPct < 0) iPct = 0;
       if (iPct > 100) iPct = 100;
@@ -76,13 +76,13 @@ class Motor
     int readActualShutterPositionPct() {
       int iRawValue = readRawActualShutterPosition();
 
-      if (iRawValue < m_iShutterClosedLimit)
-        iRawValue = m_iShutterClosedLimit;
+      if (iRawValue < m_iRawShutterClosedLimit)
+        iRawValue = m_iRawShutterClosedLimit;
 
-      if (iRawValue > m_iShutterOpenedLimit)
-        iRawValue = m_iShutterOpenedLimit;
+      if (iRawValue > m_iRawShutterOpenedLimit)
+        iRawValue = m_iRawShutterOpenedLimit;
 
-      int iRangeSize = m_iShutterOpenedLimit - m_iShutterClosedLimit;
+      int iRangeSize = m_iRawShutterOpenedLimit - m_iRawShutterClosedLimit;
 
       // clutters other debugging stuff
 //            if (m_bDebug) {
@@ -90,16 +90,16 @@ class Motor
 //              Serial.print("readActualShutterPositionPct  Raw=");
 //              Serial.print(iRawValue);
 //              Serial.print("  Limit=");
-//              Serial.print(m_iShutterClosedLimit);
+//              Serial.print(m_iRawShutterClosedLimit);
 //              Serial.print(" - ");
-//              Serial.print(m_iShutterOpenedLimit);
+//              Serial.print(m_iRawShutterOpenedLimit);
 //              Serial.print("  Range=");
 //              Serial.print(iRangeSize);
 //              Serial.print("  pct=");
-//              Serial.println(round(100 * (iRawValue - m_iShutterClosedLimit) / iRangeSize));
+//              Serial.println(round(100 * (iRawValue - m_iRawShutterClosedLimit) / iRangeSize));
 //            }
 
-      int iPct = round(100 * (iRawValue - m_iShutterClosedLimit) / iRangeSize);
+      int iPct = round(100 * (iRawValue - m_iRawShutterClosedLimit) / iRangeSize);
       
       if (iPct < 0) iPct = 0;
       if (iPct > 100) iPct = 100;
@@ -110,27 +110,27 @@ class Motor
 
     void loadLimitsFromEEPROM() {
       unsigned int iMemPos = m_iCalMemoryStart;
-      m_iShutterClosedLimit = eeprom_read_word((unsigned int*) iMemPos);
+      m_iRawShutterClosedLimit = eeprom_read_word((unsigned int*) iMemPos);
       iMemPos += sizeof(int);
-      m_iShutterOpenedLimit = eeprom_read_word((unsigned int*) iMemPos);
+      m_iRawShutterOpenedLimit = eeprom_read_word((unsigned int*) iMemPos);
 
       iMemPos += sizeof(int) ;
-      m_iPedalClosedLimit = eeprom_read_word((unsigned int*) iMemPos);
+      m_iRawPedalClosedLimit = eeprom_read_word((unsigned int*) iMemPos);
       iMemPos += sizeof(int);
-      m_iPedalOpenedLimit = eeprom_read_word((unsigned int*) iMemPos);
+      m_iRawPedalOpenedLimit = eeprom_read_word((unsigned int*) iMemPos);
     }
 
 
     void saveLimitsToEEPROM() {
       unsigned int iMemPos = m_iCalMemoryStart;
-      eeprom_write_word((unsigned int*) iMemPos, m_iShutterClosedLimit);
+      eeprom_write_word((unsigned int*) iMemPos, m_iRawShutterClosedLimit);
       iMemPos += sizeof(int);
-      eeprom_write_word((unsigned int*) iMemPos, m_iShutterOpenedLimit);
+      eeprom_write_word((unsigned int*) iMemPos, m_iRawShutterOpenedLimit);
 
       iMemPos += sizeof(int);
-      eeprom_write_word((unsigned int*) iMemPos, m_iPedalClosedLimit);
+      eeprom_write_word((unsigned int*) iMemPos, m_iRawPedalClosedLimit);
       iMemPos += sizeof(int);
-      eeprom_write_word((unsigned int*) iMemPos, m_iPedalOpenedLimit);
+      eeprom_write_word((unsigned int*) iMemPos, m_iRawPedalOpenedLimit);
 
       // clears any timeout
       m_iMotorStartTime = millis();
@@ -353,18 +353,18 @@ class Motor
         Serial.println("Status: DISABLED");
 
       Serial.print("Raw: Pedal 'Open' limit is ");
-      Serial.println(m_iPedalOpenedLimit);
+      Serial.println(m_iRawPedalOpenedLimit);
       Serial.print("Raw: Pedal 'Close' limit is ");
-      Serial.println(m_iPedalClosedLimit);
+      Serial.println(m_iRawPedalClosedLimit);
       Serial.print("Raw: Pedal position is ");
       Serial.println(readRawPedalPosition());
       Serial.print("Pct: Pedal position % is ");
       Serial.println(readPedalPositionPct());
 
       Serial.print("Raw: Shutter 'Open' limit is ");
-      Serial.println(m_iShutterOpenedLimit);
+      Serial.println(m_iRawShutterOpenedLimit);
       Serial.print("Raw: Shutter 'Close' limit is ");
-      Serial.println(m_iShutterClosedLimit);
+      Serial.println(m_iRawShutterClosedLimit);
       Serial.print("Raw: Shutter position is ");
       Serial.println(readRawActualShutterPosition());
       Serial.print("Pct: Shutter position % is ");
@@ -391,33 +391,33 @@ class Motor
     }
 
     void setShutterOpenedLimit() {
-      m_iShutterOpenedLimit = readRawActualShutterPosition();
+      m_iRawShutterOpenedLimit = readRawActualShutterPosition();
       Serial.print("OK; new shutter 'open' limit is ");
-      Serial.println(m_iShutterOpenedLimit);
+      Serial.println(m_iRawShutterOpenedLimit);
       saveLimitsToEEPROM();
     }
 
 
     void setShutterClosedLimit() {
-      m_iShutterClosedLimit = readRawActualShutterPosition();
+      m_iRawShutterClosedLimit = readRawActualShutterPosition();
       Serial.print("OK; new shutter 'close' limit is ");
-      Serial.println(m_iShutterClosedLimit);
+      Serial.println(m_iRawShutterClosedLimit);
       saveLimitsToEEPROM();
     }
 
 
     void setPedalOpenedLimit() {
-      m_iPedalOpenedLimit = readRawPedalPosition();
+      m_iRawPedalOpenedLimit = readRawPedalPosition();
       Serial.print("OK; new pedal 'open' limit is ");
-      Serial.println(m_iPedalOpenedLimit);
+      Serial.println(m_iRawPedalOpenedLimit);
       saveLimitsToEEPROM();
     }
 
 
     void setPedalClosedLimit() {
-      m_iPedalClosedLimit = readRawPedalPosition();
+      m_iRawPedalClosedLimit = readRawPedalPosition();
       Serial.print("OK; new pedal 'close' limit is ");
-      Serial.println(m_iPedalClosedLimit);
+      Serial.println(m_iRawPedalClosedLimit);
       saveLimitsToEEPROM();
     }
 
