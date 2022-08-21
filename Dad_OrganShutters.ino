@@ -510,40 +510,44 @@ class Motor
         case CloseShutter:
           iStartPct=100;
           iIncPct=-5;
-          iLimitPct=5;  // don't test past end
+          iLimitPct=0;  // don't test past end
           break;
         
         case OpenShutter:
           iStartPct=0;
           iIncPct=5;
-          iLimitPct=95;  // don't test past end
+          iLimitPct=100;  // don't test past end
           break;
       }
 
+      // this way, the same code works for open-test and close
       while (iStartPct != iLimitPct) {
         Serial.print("Driving to ");
         Serial.println(iStartPct);
         testDrive(iStartPct);
   
-        m_eChosenMotorDir = eMotorDir;        
+        m_eChosenMotorDir = eMotorDir;    
+        // no need to start far below known threshold
+        m_iChosenSpeed = 100;   
 
         int iStartPos = readActualShutterPositionPct();
 
         do {
           m_iChosenSpeed += 5;
           setMotorSpeed();
-//          Serial.print("    Trying ");
-//          Serial.println(m_iChosenSpeed);
+ 
+          // essentially, we're waiting 100 ms for it to actually start to move at least 5% from intitial pasition.
           delay(100);
 
           if (m_iChosenSpeed>245) {
             Serial.println("ERROR!");
             break;
-          }
-            
+          }            
         } while (abs(iStartPos - readActualShutterPositionPct()) < 5);
 
-        Serial.print("    Threshold ");
+        Serial.print("Position %:  ");
+        Serial.print(iStartPct);
+        Serial.print("    Threshold (0-255):  ");
         Serial.println(m_iChosenSpeed);
         
         iStartPct += iIncPct;
