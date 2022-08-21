@@ -10,8 +10,7 @@ class Motor
 {
   private:
     const int icMotorTimeoutMS = 30000;
-    const int icShutterSteps_UNUSED = 64; // this is now an arbitrary value
-    const int dcDiffThresholdPct = 3;  //100 / icShutterSteps;
+    const int dcDiffThresholdPct = 3;
     const int MaxADCValue = 1023;
     const int UseSignalFromSyndyne = -1;
 
@@ -69,6 +68,7 @@ class Motor
 
 
     int readRawActualShutterPosition() {
+      // about 100 us
       return analogRead(m_iActualShutterPositionAnalogInputPin);
     }
 
@@ -218,11 +218,16 @@ class Motor
         m_iChosenSpeed = 0;
         else      
         if (abs(iDiffPct) > dcDiffThresholdPct) {
-          if (m_eChosenMotorDir == OpenShutter)
+          switch (m_eChosenMotorDir) {
+            case OpenShutter:
+              // opening requires more effort than closing (see graphs). 
             m_iChosenSpeed = 175;
-            else
-            // threshold is 100-140 or so
+              break;
+
+            case CloseShutter:
+              // closing requires less effort than opening (see graphs).  threshold is 100-140 or so; varies with position.
             m_iChosenSpeed = 165;
+          }
         } else 
           // stop!
           m_iChosenSpeed = 0;
@@ -636,4 +641,3 @@ void loop()
     //delay(10);
   }
 }
-
