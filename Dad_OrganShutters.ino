@@ -500,6 +500,124 @@ class Motor
       Serial.println("Returning to normal operation.");
     }
 
+
+    void testAccelCoast() {
+       testDrive(5);
+
+      const int StartTimeLimitMS = 250;
+      const int StartTimeSliceMS = 25;
+
+      const int StopTimeLimitMS = 100;
+      const int StopTimeSliceMS = 10;
+
+      byte posStart[StartTimeLimitMS / StartTimeSliceMS + 1];
+      byte posStop[StopTimeLimitMS / StopTimeSliceMS + 1];
+
+      // test starting in "open" direction
+
+      m_eChosenMotorDir = OpenShutter;
+      m_iChosenSpeed = 255;
+      setMotorSpeed();
+
+      long iStartTime = millis();
+
+      int iCount = 0;
+      do {       
+        // better since it has more resolution:  readRawActualShutterPosition - m_iShutterClosedLimit
+        posStart[iCount] = readActualShutterPositionPct();
+        delay(StartTimeSliceMS);
+        iCount++;
+      } while (millis() - iStartTime < StartTimeLimitMS);
+
+      delay(250);
+      
+      // test stopping
+      
+      m_iChosenSpeed = 0;
+      setMotorSpeed();
+
+      iStartTime = millis();
+
+      iCount = 0;
+      do {
+        // better since it has more resolution:  readRawActualShutterPosition - m_iShutterClosedLimit
+        posStop[iCount] = readActualShutterPositionPct();
+        delay(StopTimeSliceMS);
+        iCount++;
+      } while (millis() - iStartTime < StopTimeLimitMS);
+
+      Serial.println("Closing, starting");
+      for (int i=1; i<StartTimeLimitMS / StartTimeSliceMS; i++) {
+        Serial.print(i * StartTimeSliceMS);
+        Serial.print(" ms    % pos change:  ");
+        Serial.println(posStart[i] - posStart[i-1]);
+      }
+
+      Serial.println("Closing, stopping");
+      for (int i=1; i<StopTimeLimitMS / StopTimeSliceMS; i++) {
+        Serial.print(i * StopTimeSliceMS);
+        Serial.print(" ms    % pos change:  ");
+        Serial.println(posStop[i] - posStop[i-1]);
+      }
+      
+      Serial.println("Returning to normal operation.");
+
+
+
+      testDrive(95);
+
+      // test starting in "closing" direction
+
+      m_eChosenMotorDir = CloseShutter;
+      m_iChosenSpeed = 255;
+      setMotorSpeed();
+
+      iStartTime = millis();
+
+      iCount = 0;
+      do {
+        // better since it has more resolution:  readRawActualShutterPosition - m_iShutterClosedLimit
+        posStart[iCount] = readActualShutterPositionPct();
+        delay(StartTimeSliceMS);
+        iCount++;
+      } while (millis() - iStartTime < StartTimeLimitMS);
+
+      delay(250);
+      
+      // test stopping
+      
+      m_iChosenSpeed = 0;
+      setMotorSpeed();
+
+      iStartTime = millis();
+
+      iCount = 0;
+      do {
+        // better since it has more resolution:  readRawActualShutterPosition - m_iShutterClosedLimit
+        posStop[iCount] = readActualShutterPositionPct();
+        delay(StopTimeSliceMS);
+        iCount++;
+      } while (millis() - iStartTime < StopTimeLimitMS);
+
+      Serial.println("Opening, starting");
+      for (int i=1; i<StartTimeLimitMS / StartTimeSliceMS; i++) {
+        Serial.print(i * StartTimeSliceMS);
+        Serial.print(" ms    % pos change:  ");
+        Serial.println(posStart[i] - posStart[i-1]);
+      }
+
+      Serial.println("Opening, stopping");
+      for (int i=1; i<StopTimeLimitMS / StopTimeSliceMS; i++) {
+        Serial.print(i * StopTimeSliceMS);
+        Serial.print(" ms    % pos change:  ");
+        Serial.println(posStop[i] - posStop[i-1]);
+      }
+      
+      Serial.println("Returning to normal operation.");
+
+};
+
+
     
     void testStaticFriction(TMotorDir eMotorDir) {
       int iStartPct;
@@ -621,7 +739,9 @@ void handleCommands(Motor *motor1) {
       } else if (sCommandBuffer.equalsIgnoreCase("DebugOff")) {
         currentMotor->setDebug(false);
         Serial.println("Debug is now off");
-      } else
+      } else if (sCommandBuffer.equalsIgnoreCase("TestAccelCoast")) {
+        currentMotor->testAccelCoast();
+      } else 
         Serial.println("Unrecognized command!");
 
       Serial.println();
