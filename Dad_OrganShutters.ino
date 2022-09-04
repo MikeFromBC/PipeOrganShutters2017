@@ -199,14 +199,17 @@ class Motor
 
       // decide speed!
 
-      int iSetPct;
+      int iSetPct, iActualShutterPct, iActualShutterRaw;
 
+      iActualShutterRaw = readRawActualShutterPosition();
+      iActualShutterPct = readActualShutterPositionPct();
+      
       if (iForcedSetPct == UseSignalFromSyndyne)
       iSetPct = readPedalPositionPct();
       else
         iSetPct = iForcedSetPct;
 
-      int iDiffPct = iSetPct - readActualShutterPositionPct();
+      int iDiffPct = iSetPct - iActualShutterPct;
 
       // decide direction
       m_eChosenMotorDir = iDiffPct > 0 ? OpenShutter : CloseShutter;
@@ -275,9 +278,9 @@ class Motor
         Serial.print(" (%");
         Serial.print(iSetPct);
         Serial.print(")   Shutter:  ");
-        Serial.print(readRawActualShutterPosition());
+        Serial.print(iActualShutterRaw);
         Serial.print(" (%");
-        Serial.print(readActualShutterPositionPct());
+        Serial.print(iActualShutterPct);
         Serial.print(")   Diff %:  ");
         Serial.print(iDiffPct);
         Serial.print("   Chosen:  ");
