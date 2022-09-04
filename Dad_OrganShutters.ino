@@ -282,17 +282,17 @@ class Motor
         Serial.print(iDiffPct);
         Serial.print("   Chosen:  ");
         switch (m_eChosenMotorDir) {
-          OpenShutter:
+          case OpenShutter:
             Serial.print("Open ");
             Serial.println(m_iChosenSpeed);
             break;
           
-          CloseShutter:
+          case CloseShutter:
             Serial.print("Close ");
             Serial.println(m_iChosenSpeed);
             break;
           
-          Stop:
+          case Stop:
             Serial.println("STOPPED");
             break;         
         }
