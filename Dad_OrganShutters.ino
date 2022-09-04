@@ -154,7 +154,7 @@ class Motor
     }
 
 
-    void configurePort()
+    void configurePorts()
     {
       pinMode(m_iActualShutterPositionAnalogInputPin, INPUT);
 
@@ -322,7 +322,7 @@ class Motor
 
       loadLimitsFromEEPROM();
 
-      configurePort();
+      configurePorts();
 
       forgetStartTime();
       resetError();
