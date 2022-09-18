@@ -109,16 +109,16 @@ class Motor
 
 
     void loadLimitsFromEEPROM() {
-      unsigned int iMemPos = m_iCalMemoryStart;
-      m_iRawShutterClosedLimit = eeprom_read_word((unsigned int*) iMemPos);
-      iMemPos += sizeof(int);
-      m_iRawShutterOpenedLimit = eeprom_read_word((unsigned int*) iMemPos);
-
-      iMemPos += sizeof(int) ;
-      m_iRawPedalClosedLimit = eeprom_read_word((unsigned int*) iMemPos);
-      iMemPos += sizeof(int);
-      m_iRawPedalOpenedLimit = eeprom_read_word((unsigned int*) iMemPos);
-    }
+        unsigned int iMemPos = m_iCalMemoryStart;
+        m_iRawShutterClosedLimit = eeprom_read_word((unsigned int*) iMemPos);
+        iMemPos += sizeof(int);
+        m_iRawShutterOpenedLimit = eeprom_read_word((unsigned int*) iMemPos);
+  
+        iMemPos += sizeof(int) ;
+        m_iRawPedalClosedLimit = eeprom_read_word((unsigned int*) iMemPos);
+        iMemPos += sizeof(int);
+        m_iRawPedalOpenedLimit = eeprom_read_word((unsigned int*) iMemPos);
+      }
 
 
     void saveLimitsToEEPROM() {
@@ -205,8 +205,8 @@ class Motor
       iActualShutterPct = readActualShutterPositionPct();
       
       if (iForcedSetPct == UseSignalFromSyndyne)
-      iSetPct = readPedalPositionPct();
-      else
+        iSetPct = readPedalPositionPct();
+        else
         iSetPct = iForcedSetPct;
 
       int iDiffPct = iSetPct - iActualShutterPct;
