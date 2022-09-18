@@ -73,9 +73,7 @@ class Motor
     }
 
 
-    int readActualShutterPositionPct() {
-      int iRawValue = readRawActualShutterPosition();
-
+    int calcActualShutterPositionPct(int iRawValue) {
       if (iRawValue < m_iRawShutterClosedLimit)
         iRawValue = m_iRawShutterClosedLimit;
 
@@ -107,6 +105,12 @@ class Motor
       return iPct;
     }
 
+
+    int readActualShutterPositionPct() {
+      int iRawValue = readRawActualShutterPosition();
+      return calcActualShutterPositionPct(iRawValue);
+    }
+  
 
     void loadLimitsFromEEPROM() {
         unsigned int iMemPos = m_iCalMemoryStart;
