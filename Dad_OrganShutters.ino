@@ -206,7 +206,7 @@ class Motor
       int iSetPct, iActualShutterPct, iActualShutterRaw;
 
       iActualShutterRaw = readRawActualShutterPosition();
-      iActualShutterPct = readActualShutterPositionPct();
+      iActualShutterPct = calcActualShutterPositionPct(iActualShutterRaw);
       
       if (iForcedSetPct == UseSignalFromSyndyne)
         iSetPct = readPedalPositionPct();
@@ -253,7 +253,8 @@ class Motor
       int iFlashTmp;
 
       bool bTimeout = (m_iMotorStartTime > 0) && (millis() - m_iMotorStartTime > icMotorTimeoutMS);
-      bool bBadFeedback = (readRawActualShutterPosition() == MaxADCValue) || (readRawActualShutterPosition() == 0);
+      bool bBadFeedback = (iActualShutterRaw == MaxADCValue) || (iActualShutterRaw == 0);
+
 
       bool bError = bTimeout || bBadFeedback;
       if (bError) {
@@ -274,6 +275,9 @@ class Motor
 
       if (bTimeout) Serial.println("TIMEOUT");
       if (bBadFeedback) Serial.println("BAD FEEDBACK");
+
+      iActualShutterRaw = readRawActualShutterPosition();
+      iActualShutterPct = calcActualShutterPositionPct(iActualShutterRaw);
 
       if ((m_bDebug) && (m_iCalMemoryStart==0x0000)) {
         Serial.print(millis());
@@ -359,6 +363,8 @@ class Motor
       else
         Serial.println("Status: DISABLED");
 
+      int iRawActualShutterPosition=readRawActualShutterPosition();
+      
       Serial.print("Raw: Pedal 'Open' limit is ");
       Serial.println(m_iRawPedalOpenedLimit);
       Serial.print("Raw: Pedal 'Close' limit is ");
@@ -373,9 +379,9 @@ class Motor
       Serial.print("Raw: Shutter 'Close' limit is ");
       Serial.println(m_iRawShutterClosedLimit);
       Serial.print("Raw: Shutter position is ");
-      Serial.println(readRawActualShutterPosition());
+      Serial.println(iRawActualShutterPosition);
       Serial.print("Pct: Shutter position % is ");
-      Serial.println(readActualShutterPositionPct());
+      Serial.println(calcActualShutterPositionPct(iRawActualShutterPosition));
     }
 
 
