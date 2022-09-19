@@ -279,6 +279,22 @@ class Motor
       iActualShutterRaw = readRawActualShutterPosition();
       iActualShutterPct = calcActualShutterPositionPct(iActualShutterRaw);
 
+//      Serial.print(iActualShutterPct);
+//      switch (m_eChosenMotorDir) {
+//        case OpenShutter:
+//          Serial.println(" +");
+//          break;
+//        
+//        case CloseShutter:
+//          Serial.print(" -");
+//          break;
+//        
+//        case Stop:
+//          Serial.println(" X");
+//          break;         
+//      }
+//
+
       if ((m_bDebug) && (m_iCalMemoryStart==0x0000)) {
         Serial.print(millis());
         Serial.print(" ms  Pedal:  ");
